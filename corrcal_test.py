@@ -1,18 +1,24 @@
 import sys
 import numpy
 import matplotlib
-matplotlib.use('Agg')
+# matplotlib.use('Agg')
 from matplotlib import pyplot
+from scipy.optimize import fmin_cg
 
-#Import local codes
+# Import local codes
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 sys.path.append("../corrcal2")
 
 import skymodel
 import radiotelescope
 from gain_variance_simulation import get_observations_numba
+import corrcal2
 from corrcal2 import sparse_2level
 from corrcal2 import grid_data
+from corrcal2 import sparse_2level
+
+from analytic_covariance import sky_covariance
+
 
 ################################################
 # ant1.dat contains the antenna id/index for the first antenna in each baseline
@@ -20,74 +26,103 @@ from corrcal2 import grid_data
 # gtmp.dat contains the antenna gains split up in real and imaginary components
 # vis.dat contains the visibility data split up in real and imaginary components
 
-#signal_sparse2_test.dat contains a lot of information that apparently needs to be shaped in the right way
+# signal_sparse2_test.dat contains a lot of information that apparently needs to be shaped in the right way
 #
 ################################################
 
 
-def main(path, tol = 0.1):
+def main(path, tol=0.1):
     calibrator_flux = 100
     calibrator_l = 0
     calibrator_m = 0
-    frequency_range = numpy.array([150])*1e6
+    frequency_range = numpy.array([150]) * 1e6
 
     path = "../../beam_perturbations/code/tile_beam_perturbations/Data/" + path
-    radio_telescope = radiotelescope.RadioTelescope(path=path  )
-    #radio_telescope = radiotelescope.RadioTelescope(load = False, shape = ['hex', 7, 0, 0 ])
-    sky_realisation = skymodel.SkyRealisation(sky_type = "random", flux_high = 1)
+    # radio_telescope = radiotelescope.RadioTelescope(load = False  )
+    radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['hex', 7, 0, 0])
+    sky_realisation = skymodel.SkyRealisation(sky_type="random", flux_high=1)
 
     sky_realisation.fluxes = numpy.append(sky_realisation.fluxes, calibrator_flux)
     sky_realisation.l_coordinates = numpy.append(sky_realisation.l_coordinates, calibrator_l)
     sky_realisation.m_coordinates = numpy.append(sky_realisation.m_coordinates, calibrator_m)
-
     visibility_data = get_observations_numba(sky_realisation, radio_telescope.baseline_table, frequency_range)
-    #Reorders all the data into redundant groupings
+
+    # Reorders all the data into redundant groupings
     data, u, v, noise, ant1, ant2, edges, ii, isonj = grid_data(visibility_data,
                                                                 radio_telescope.baseline_table.u_coordinates,
                                                                 radio_telescope.baseline_table.v_coordinates,
                                                                 numpy.zeros_like(visibility_data),
                                                                 radio_telescope.baseline_table.antenna_id1,
-                                                                radio_telescope.baseline_table.antenna_id2, tol = tol)
+                                                                radio_telescope.baseline_table.antenna_id2, tol=tol)
 
-    data_split = split_visibility(data, ant1, ant2)
+    # We need to split up all data into real an imaginary parts and then rearrange them alternating Re1, Im1, Re2, Im2
+    data_split = split_visibility(data)
+
+    # We need to create a model visibility vector and do the same thing
+    # Create a sky model object, NOTE: for multiple sources we need to split this up per source.
+    sky_model = skymodel.SkyRealisation(sky_type="point", fluxes=calibrator_flux, l_coordinates=calibrator_l,
+                                        m_coordinates=calibrator_m)
+    visibility_model = get_observations_numba(sky_model, radio_telescope.baseline_table, frequency_range)
+    model_vectors = split_visibility((visibility_model[ii]))
+
+    # We need to create a data covariance vector that describes the correlation between data in redundant blocks.
+    # Currently the code seems to assume that data in redundant blocks are perfectly redundant, i.e. the covariance has
+    # the same value throughout the block. We know however, that due to position errors this covariance changes
+    # within a "Redundant/Quasi Redundant" block. So at some point we need to understand how to include the covariance
+    # for quasi redundant baselines
+    # This opens the rabbit hole of computing eigenvectors etc for the construction of the magic covariance matrix.
+
+    # Okay there is some horrible reshaping going on, need to ensure that all reshaping is done properly
+    covariance_vectors = numpy.zeros((2, data_split.shape[1]))
+    covariance_vectors[0::2] = 1
+    covariance_vectors[1::2] = 1
+    # set the level of variance
+    covariance_vectors *= sky_covariance(0, 0, frequency_range)
+    print(covariance_vectors.shape)
+    # Create a noise variance vector, that describes the diagonal
+    noise_variance = numpy.zeros(data_split.shape[1])
+    matrix = sparse_2level(noise_variance, covariance_vectors, model_vectors, edges)
+
+    fac = 1000.0
+    n_antennas = len(radio_telescope.antenna_positions.antenna_ids)
+    gain_guess = numpy.zeros(2*n_antennas)
+    gain_guess[::2] = 1
+
+    #So we currently use a scipy minimiser using nonlinear conjugate gradient algorithm.
+    #But the main magic we need to understand happens in these corrcal functions
+    gain_solutions = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data, matrix, ant1, ant2, fac))
+    print(gain_solutions)
+    return
 
 
-    return edges
-
-
-def split_visibility(data, ant1, ant2):
+def split_visibility(data):
     data_real = numpy.real(data)
     data_imag = numpy.imag(data)
 
-    data_split = numpy.hstack(data_real, data_imag).reshape((1, 2*len(data_real)), order = "F")
+    data_split = numpy.hstack((data_real, data_imag)).reshape((1, 2 * len(data_real)), order="F")
+
     return data_split
 
 
 def plot_weights():
-    mwa_edges = main("MWA_Compact_Coordinates.txt", tol = 1)
-    ska_edges = main("SKA_Low_v5_ENU_fullcore.txt", tol = 5)
+    mwa_edges = main("MWA_Compact_Coordinates.txt", tol=1)
+    ska_edges = main("SKA_Low_v5_ENU_fullcore.txt", tol=5)
 
     mwa_group_fraction = numpy.linspace(0, 100, len(mwa_edges))
     ska_group_fraction = numpy.linspace(0, 100, len(ska_edges))
     linear_group = numpy.linspace(0, 100, 100)
 
     pyplot.plot(linear_group, linear_group, "--")
-    pyplot.plot(mwa_group_fraction, mwa_edges/numpy.max(mwa_edges)*100, label = "MWA")
-    pyplot.plot(ska_group_fraction, ska_edges/numpy.max(ska_edges)*100, label = "SKA")
+    pyplot.plot(mwa_group_fraction, mwa_edges / numpy.max(mwa_edges) * 100, label="MWA")
+    pyplot.plot(ska_group_fraction, ska_edges / numpy.max(ska_edges) * 100, label="SKA")
     pyplot.xlabel("Percentage of Redundant Groups")
     pyplot.ylabel("Percentage of Baselines")
     pyplot.legend()
 
     pyplot.savefig("Redundancy_Comparison.png")
 
-
     return
 
 
-
 if "__main__" == __name__:
-
-
-
-
-
+    main("MWA_Hexes_Coordinates.txt")
