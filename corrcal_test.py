@@ -1,9 +1,11 @@
+from __future__ import print_function
 import sys
 import numpy
 import matplotlib
 # matplotlib.use('Agg')
 from matplotlib import pyplot
 from scipy.optimize import fmin_cg
+
 
 # Import local codes
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
@@ -30,6 +32,9 @@ from analytic_covariance import sky_covariance
 #
 ################################################
 
+# Antenna indices have to integers and index to location in position table
+
+
 
 def main(path, tol=0.1):
     calibrator_flux = 100
@@ -39,7 +44,12 @@ def main(path, tol=0.1):
 
     path = "../../beam_perturbations/code/tile_beam_perturbations/Data/" + path
     # radio_telescope = radiotelescope.RadioTelescope(load = False  )
-    radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['hex', 7, 0, 0])
+    # radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['doublehex', 7, 0, 0, 20, 20])
+    radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['square', 100, 12, 0, 0])
+    print(len(radio_telescope.antenna_positions.antenna_ids))
+    radio_telescope.antenna_positions.antenna_ids = numpy.arange(0, len(radio_telescope.antenna_positions.antenna_ids), 1)
+    radio_telescope.baseline_table = radiotelescope.BaselineTable(radio_telescope.antenna_positions)
+
     sky_realisation = skymodel.SkyRealisation(sky_type="random", flux_high=1)
 
     sky_realisation.fluxes = numpy.append(sky_realisation.fluxes, calibrator_flux)
@@ -52,8 +62,9 @@ def main(path, tol=0.1):
                                                                 radio_telescope.baseline_table.u_coordinates,
                                                                 radio_telescope.baseline_table.v_coordinates,
                                                                 numpy.zeros_like(visibility_data),
-                                                                radio_telescope.baseline_table.antenna_id1,
-                                                                radio_telescope.baseline_table.antenna_id2, tol=tol)
+                                                                radio_telescope.baseline_table.antenna_id1.astype(int),
+                                                                radio_telescope.baseline_table.antenna_id2.astype(int),
+                                                                tol=tol)
 
     # We need to split up all data into real an imaginary parts and then rearrange them alternating Re1, Im1, Re2, Im2
     data_split = split_visibility(data)
@@ -63,7 +74,12 @@ def main(path, tol=0.1):
     sky_model = skymodel.SkyRealisation(sky_type="point", fluxes=calibrator_flux, l_coordinates=calibrator_l,
                                         m_coordinates=calibrator_m)
     visibility_model = get_observations_numba(sky_model, radio_telescope.baseline_table, frequency_range)
-    model_vectors = split_visibility((visibility_model[ii]))
+    model_vectors = split_visibility((visibility_model[ii])).reshape([1, len(data_split) ])
+
+    print(data.shape)
+    print(visibility_model[ii].shape)
+    pyplot.plot(data_split[::2]**2+data_split[1::2]**2)
+    pyplot.show()
 
     # We need to create a data covariance vector that describes the correlation between data in redundant blocks.
     # Currently the code seems to assume that data in redundant blocks are perfectly redundant, i.e. the covariance has
@@ -73,14 +89,14 @@ def main(path, tol=0.1):
     # This opens the rabbit hole of computing eigenvectors etc for the construction of the magic covariance matrix.
 
     # Okay there is some horrible reshaping going on, need to ensure that all reshaping is done properly
-    covariance_vectors = numpy.zeros((2, data_split.shape[1]))
+    covariance_vectors = numpy.zeros((2, data_split.shape[0]))
     covariance_vectors[0::2] = 1
     covariance_vectors[1::2] = 1
     # set the level of variance
     covariance_vectors *= sky_covariance(0, 0, frequency_range)
-    print(covariance_vectors.shape)
     # Create a noise variance vector, that describes the diagonal
-    noise_variance = numpy.zeros(data_split.shape[1])
+    noise_variance = numpy.zeros(data_split.shape[0]) + 0.000000001
+
     matrix = sparse_2level(noise_variance, covariance_vectors, model_vectors, edges)
 
     fac = 1000.0
@@ -88,9 +104,10 @@ def main(path, tol=0.1):
     gain_guess = numpy.zeros(2*n_antennas)
     gain_guess[::2] = 1
 
-    #So we currently use a scipy minimiser using nonlinear conjugate gradient algorithm.
-    #But the main magic we need to understand happens in these corrcal functions
-    gain_solutions = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data, matrix, ant1, ant2, fac))
+
+    corrcal2.get_chisq(gain_guess*fac, data_split, matrix, ant1, ant2, scale_fac = fac)
+
+    #gain_solutions = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data, matrix, ant1, ant2, fac))
     print(gain_solutions)
     return
 
@@ -99,9 +116,9 @@ def split_visibility(data):
     data_real = numpy.real(data)
     data_imag = numpy.imag(data)
 
-    data_split = numpy.hstack((data_real, data_imag)).reshape((1, 2 * len(data_real)), order="F")
+    data_split = numpy.hstack((data_real, data_imag)).reshape((1, 2 * len(data_real)), order="C")
 
-    return data_split
+    return data_split[0,:]
 
 
 def plot_weights():
