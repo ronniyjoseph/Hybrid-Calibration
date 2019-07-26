@@ -46,7 +46,6 @@ def main(path, tol=0.1):
     # radio_telescope = radiotelescope.RadioTelescope(load = False  )
     # radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['doublehex', 7, 0, 0, 20, 20])
     radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['square', 100, 12, 0, 0])
-    print(len(radio_telescope.antenna_positions.antenna_ids))
     radio_telescope.antenna_positions.antenna_ids = numpy.arange(0, len(radio_telescope.antenna_positions.antenna_ids), 1)
     radio_telescope.baseline_table = radiotelescope.BaselineTable(radio_telescope.antenna_positions)
 
@@ -75,11 +74,11 @@ def main(path, tol=0.1):
                                         m_coordinates=calibrator_m)
     visibility_model = get_observations_numba(sky_model, radio_telescope.baseline_table, frequency_range)
     model_vectors = split_visibility((visibility_model[ii])).reshape([1, len(data_split) ])
-
-    print(data.shape)
-    print(visibility_model[ii].shape)
-    pyplot.plot(data_split[::2]**2+data_split[1::2]**2)
-    pyplot.show()
+    #
+    # print(data.shape)
+    # print(visibility_model[ii].shape)
+    # pyplot.plot(data_split[::2]**2+data_split[1::2]**2)
+    # pyplot.show()
 
     # We need to create a data covariance vector that describes the correlation between data in redundant blocks.
     # Currently the code seems to assume that data in redundant blocks are perfectly redundant, i.e. the covariance has
@@ -95,9 +94,10 @@ def main(path, tol=0.1):
     # set the level of variance
     covariance_vectors *= sky_covariance(0, 0, frequency_range)
     # Create a noise variance vector, that describes the diagonal
-    noise_variance = numpy.zeros(data_split.shape[0]) + 0.000000001
+    # This noise can't be to small because other it becomes massive in the inverse diagonal
+    noise_variance = numpy.zeros(data_split.shape[0]) + 0.001
 
-    matrix = sparse_2level(noise_variance, covariance_vectors, model_vectors, edges)
+    sparse_matrix_object = sparse_2level(noise_variance, covariance_vectors, model_vectors, edges)
 
     fac = 1000.0
     n_antennas = len(radio_telescope.antenna_positions.antenna_ids)
@@ -105,10 +105,11 @@ def main(path, tol=0.1):
     gain_guess[::2] = 1
 
 
-    corrcal2.get_chisq(gain_guess*fac, data_split, matrix, ant1, ant2, scale_fac = fac)
-
-    #gain_solutions = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data, matrix, ant1, ant2, fac))
+    corrcal2.get_chisq(gain_guess*fac, data_split, sparse_matrix_object, ant1, ant2, scale_fac = fac)
+    corrcal2.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
+    gain_solutions = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))
     print(gain_solutions)
+    print("HURAAAAAAH I DID NOT CRASH")
     return
 
 
@@ -117,7 +118,6 @@ def split_visibility(data):
     data_imag = numpy.imag(data)
 
     data_split = numpy.hstack((data_real, data_imag)).reshape((1, 2 * len(data_real)), order="C")
-
     return data_split[0,:]
 
 
