@@ -41,6 +41,8 @@ def main(path, tol=0.1):
     calibrator_l = 0
     calibrator_m = 0
     frequency_range = numpy.array([150]) * 1e6
+    noise_level = 1e-5
+
 
     path = "../../beam_perturbations/code/tile_beam_perturbations/Data/" + path
     # radio_telescope = radiotelescope.RadioTelescope(load = False  )
@@ -55,12 +57,12 @@ def main(path, tol=0.1):
     sky_realisation.l_coordinates = numpy.append(sky_realisation.l_coordinates, calibrator_l)
     sky_realisation.m_coordinates = numpy.append(sky_realisation.m_coordinates, calibrator_m)
     visibility_data = get_observations_numba(sky_realisation, radio_telescope.baseline_table, frequency_range)
-
+    thermal_noise = numpy.random.normal(scale = noise_level, size = visibility_data.shape)
     # Reorders all the data into redundant groupings
-    data, u, v, noise, ant1, ant2, edges, ii, isonj = grid_data(visibility_data,
+    data, u, v, noise, ant1, ant2, edges, ii, isonj = grid_data(visibility_data + thermal_noise,
                                                                 radio_telescope.baseline_table.u_coordinates,
                                                                 radio_telescope.baseline_table.v_coordinates,
-                                                                numpy.zeros_like(visibility_data),
+                                                                thermal_noise,
                                                                 radio_telescope.baseline_table.antenna_id1.astype(int),
                                                                 radio_telescope.baseline_table.antenna_id2.astype(int),
                                                                 tol=tol)
@@ -95,8 +97,7 @@ def main(path, tol=0.1):
     covariance_vectors *= sky_covariance(0, 0, frequency_range)
     # Create a noise variance vector, that describes the diagonal
     # This noise can't be to small because other it becomes massive in the inverse diagonal
-    noise_variance = numpy.zeros(data_split.shape[0]) + 0.001
-
+    noise_variance = numpy.zeros(data_split.shape[0]) + noise_level
     sparse_matrix_object = sparse_2level(noise_variance, covariance_vectors, model_vectors, edges)
 
     fac = 1000.0
@@ -108,7 +109,8 @@ def main(path, tol=0.1):
     corrcal2.get_chisq(gain_guess*fac, data_split, sparse_matrix_object, ant1, ant2, scale_fac = fac)
     corrcal2.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
     gain_solutions = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))
-    print(gain_solutions)
+    pyplot.plot(numpy.sqrt(gain_solutions[1::2] ** 2 + gain_solutions[::2] ** 2))
+    pyplot.show()
     print("HURAAAAAAH I DID NOT CRASH")
     return
 
