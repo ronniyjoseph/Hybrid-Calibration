@@ -44,8 +44,8 @@ def main(path, tol=0.1):
     noise_level = 1e-5
 
 
-    path = "../../beam_perturbations/code/tile_beam_perturbations/Data/" + path
-    # radio_telescope = radiotelescope.RadioTelescope(load = False  )
+    path = "../../beam_perturbations/code/tile_beam_perturbations/Data/MWA_Compact_Coordinates.txt"
+    #radio_telescope = radiotelescope.RadioTelescope(load = True, path=path)
     # radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['doublehex', 7, 0, 0, 20, 20])
     radio_telescope = radiotelescope.RadioTelescope(load=False, shape=['square', 100, 12, 0, 0])
     radio_telescope.antenna_positions.antenna_ids = numpy.arange(0, len(radio_telescope.antenna_positions.antenna_ids), 1)
@@ -108,10 +108,14 @@ def main(path, tol=0.1):
 
     corrcal2.get_chisq(gain_guess*fac, data_split, sparse_matrix_object, ant1, ant2, scale_fac = fac)
     corrcal2.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
-    gain_solutions = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))
-    pyplot.plot(numpy.sqrt(gain_solutions[1::2] ** 2 + gain_solutions[::2] ** 2))
+    gain_solutions_split = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))/fac
+    gain_solutions_complex = gain_solutions_split[::2] + 1j*gain_solutions_split[1::2]
+
+    figure, axes = pyplot.subplots(1, 2, figsize = (10, 5))
+    axes[0].hist(numpy.abs(gain_solutions_complex - 1), bins = 50)
+    axes[1].hist(numpy.abs(numpy.angle(gain_solutions_complex)), bins = 50)
+
     pyplot.show()
-    print("HURAAAAAAH I DID NOT CRASH")
     return
 
 
