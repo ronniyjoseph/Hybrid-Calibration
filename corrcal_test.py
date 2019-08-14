@@ -17,7 +17,9 @@ from gain_variance_simulation import get_observations_numba
 import corrcal2
 from corrcal2 import sparse_2level
 from corrcal2 import grid_data
-from corrcal2 import sparse_2level
+
+from util import split_visibility
+
 
 from analytic_covariance import sky_covariance
 
@@ -117,14 +119,6 @@ def main(path, tol=0.1):
 
     pyplot.show()
     return
-
-
-def split_visibility(data):
-    data_real = numpy.real(data)
-    data_imag = numpy.imag(data)
-
-    data_split = numpy.hstack((data_real, data_imag)).reshape((1, 2 * len(data_real)), order="C")
-    return data_split[0,:]
 
 
 def plot_weights():
