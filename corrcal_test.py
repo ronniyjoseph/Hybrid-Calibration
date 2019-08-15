@@ -19,7 +19,7 @@ from corrcal2 import sparse_2level
 from corrcal2 import grid_data
 
 from util import split_visibility
-
+from calibrate import calibrate
 
 from analytic_covariance import sky_covariance
 
@@ -61,7 +61,7 @@ def main(path, tol=0.1):
     visibility_data = get_observations_numba(sky_realisation, radio_telescope.baseline_table, frequency_range)
     thermal_noise = numpy.random.normal(scale = noise_level, size = visibility_data.shape)
     # Reorders all the data into redundant groupings
-    data, u, v, noise, ant1, ant2, edges, ii, isonj = grid_data(visibility_data + thermal_noise,
+    data, u, v, noise, ant1, ant2, edges, sorting_indices, conjugation_flag = grid_data(visibility_data + thermal_noise,
                                                                 radio_telescope.baseline_table.u_coordinates,
                                                                 radio_telescope.baseline_table.v_coordinates,
                                                                 thermal_noise,
@@ -77,7 +77,7 @@ def main(path, tol=0.1):
     sky_model = skymodel.SkyRealisation(sky_type="point", fluxes=calibrator_flux, l_coordinates=calibrator_l,
                                         m_coordinates=calibrator_m)
     visibility_model = get_observations_numba(sky_model, radio_telescope.baseline_table, frequency_range)
-    model_vectors = split_visibility((visibility_model[ii])).reshape([1, len(data_split) ])
+    model_vectors = split_visibility((visibility_model[sorting_indices])).reshape([1, len(data_split)])
     #
     # print(data.shape)
     # print(visibility_model[ii].shape)
@@ -110,8 +110,10 @@ def main(path, tol=0.1):
 
     corrcal2.get_chisq(gain_guess*fac, data_split, sparse_matrix_object, ant1, ant2, scale_fac = fac)
     corrcal2.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
-    gain_solutions_split = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))/fac
-    gain_solutions_complex = gain_solutions_split[::2] + 1j*gain_solutions_split[1::2]
+
+    # gain_solutions_split = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))/fac
+    gain_solutions_complex = calibrate(data_split, noise_variance, covariance_vectors, model_vectors, edges,
+                                       ant1, ant2)
 
     figure, axes = pyplot.subplots(1, 2, figsize = (10, 5))
     axes[0].hist(numpy.abs(gain_solutions_complex - 1), bins = 50)
