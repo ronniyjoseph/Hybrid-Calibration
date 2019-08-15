@@ -1,5 +1,5 @@
 import numpy
-
+from skymodel import apparent_fluxes_numba
 
 def split_visibility(data):
     data_real = numpy.real(data)
@@ -7,3 +7,23 @@ def split_visibility(data):
 
     data_split = numpy.hstack((data_real, data_imag)).reshape((1, 2 * len(data_real)), order="C")
     return data_split[0, :]
+
+
+def find_sky_model_sources(sky_realisation, frequency_range, antenna_size = 4):
+    apparent_flux = apparent_fluxes_numba(sky_realisation, frequency_range, antenna_diameter = antenna_size )
+    rms = numpy.sqrt(numpy.mean(sky_realisation.fluxes**2))
+    model_source_indices = numpy.where(apparent_flux[:, 0] > 3*rms)
+    sky_model = sky_realisation.select_sources(model_source_indices)
+
+    return sky_model
+
+
+def generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size):
+    number_of_sources = len(sky_model_sources.fluxes)
+    sky_vectors = numpy.zeros((number_of_sources, baseline_table.number_of_baselines*2))
+    for i in range(number_of_sources):
+        single_source = sky_model_sources.select_sources(i)
+        source_visibilities = single_source.create_visibility_model(baseline_table, frequency_range, antenna_size)
+        sky_vectors[i, :] = split_visibility(source_visibilities)
+
+    return sky_vectors
