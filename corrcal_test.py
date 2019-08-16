@@ -19,7 +19,7 @@ from corrcal2 import sparse_2level
 from corrcal2 import grid_data
 
 from util import split_visibility
-from calibrate import calibrate
+from calibrate import hybrid_calibration
 
 from analytic_covariance import sky_covariance
 
@@ -112,7 +112,7 @@ def main(path, tol=0.1):
     corrcal2.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
 
     # gain_solutions_split = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))/fac
-    gain_solutions_complex = calibrate(data_split, noise_variance, covariance_vectors, model_vectors, edges,
+    gain_solutions_complex = hybrid_calibration(data_split, noise_variance, covariance_vectors, model_vectors, edges,
                                        ant1, ant2)
 
     figure, axes = pyplot.subplots(1, 2, figsize = (10, 5))
