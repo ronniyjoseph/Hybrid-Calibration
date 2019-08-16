@@ -8,7 +8,7 @@ from corrcal2 import get_chisq
 from corrcal2 import get_gradient
 
 
-def calibrate(data, noise_variance,covariance_vectors, model_vectors, edges, antenna1_indices, antenna2_indices,
+def hybrid_calibration(data, noise_variance,covariance_vectors, model_vectors, edges, antenna1_indices, antenna2_indices,
               gain_guess = None, scale_factor = 1000):
     if gain_guess is None:
         #compute number of antennas based on number of baselines
