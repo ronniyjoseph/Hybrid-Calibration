@@ -43,6 +43,8 @@ def main():
     antenna_size = antenna_scale * wavelength
 
     antenna_table = AntennaPositions(load=False, shape=['square', array_size / 2, n_antenna_grid_points, 0, 0])
+    antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
+
     baseline_table = BaselineTable(position_table=antenna_table, frequency_channels=frequency_range)
 
     # We go down to 40 mili-Jansky to get about 10 calibration sources
@@ -54,7 +56,6 @@ def main():
     # now compute the visibilities
     data_complex = sky_realisation.create_visibility_model(baseline_table, frequency_range, antenna_size=antenna_size)
     thermal_noise = numpy.random.normal(scale=noise_level, size=data_complex.shape)
-    print(min(thermal_noise))
 
 
     data_sorted, u_sorted, v_sorted, noise_sorted, ant1_sorted, ant2_sorted, edges_sorted, sorting_indices, \
@@ -66,15 +67,15 @@ def main():
                                  baseline_table.antenna_id2.astype(int))
 
     data_split = split_visibility(data_sorted)
-    model_split = generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size)
+    model_split = generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size)[0, :]
 
     covariance_split = generate_covariance_vectors(baseline_table.number_of_baselines, frequency_range)
     noise_split = numpy.zeros(data_split.shape[0]) + noise_level
+
     gain_solutions = hybrid_calibration(data_split, noise_split, covariance_split, model_split, edges_sorted,
                                         ant1_sorted, ant2_sorted, gain_guess = None, scale_factor = 1000)
 
-
-    return
+    return gain_solutions
 
 
 def plot_sky_counts(fluxes):
