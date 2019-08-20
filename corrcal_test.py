@@ -107,7 +107,6 @@ def main(path, tol=0.1):
     gain_guess = numpy.zeros(2*n_antennas)
     gain_guess[::2] = 1
 
-
     corrcal2.get_chisq(gain_guess*fac, data_split, sparse_matrix_object, ant1, ant2, scale_fac = fac)
     corrcal2.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
 
