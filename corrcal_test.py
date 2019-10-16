@@ -2,21 +2,21 @@ from __future__ import print_function
 import sys
 import numpy
 import matplotlib
-# matplotlib.use('Agg')
+#matplotlib.use('Agg')
 from matplotlib import pyplot
 from scipy.optimize import fmin_cg
 
 
 # Import local codes
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
-sys.path.append("../corrcal2")
+sys.path.append("../../CorrCal_UKZN_Development/")
 
 import skymodel
 import radiotelescope
-from gain_variance_simulation import get_observations_numba
-import corrcal2
-from corrcal2 import sparse_2level
-from corrcal2 import grid_data
+#from gain_variance_simulation import get_observations_numba
+import corrcal.corrcal as corrcal
+from corrcal.corrcal import sparse_2level
+from corrcal.corrcal import grid_data
 
 from util import split_visibility
 from calibrate import hybrid_calibration
@@ -58,7 +58,7 @@ def main(path, tol=0.1):
     sky_realisation.fluxes = numpy.append(sky_realisation.fluxes, calibrator_flux)
     sky_realisation.l_coordinates = numpy.append(sky_realisation.l_coordinates, calibrator_l)
     sky_realisation.m_coordinates = numpy.append(sky_realisation.m_coordinates, calibrator_m)
-    visibility_data = get_observations_numba(sky_realisation, radio_telescope.baseline_table, frequency_range)
+    visibility_data = sky_realisation.create_visibility_model(radio_telescope.baseline_table, frequency_range)
     thermal_noise = numpy.random.normal(scale = noise_level, size = visibility_data.shape)
     # Reorders all the data into redundant groupings
     data, u, v, noise, ant1, ant2, edges, sorting_indices, conjugation_flag = grid_data(visibility_data + thermal_noise,
@@ -76,7 +76,7 @@ def main(path, tol=0.1):
     # Create a sky model object, NOTE: for multiple sources we need to split this up per source.
     sky_model = skymodel.SkyRealisation(sky_type="point", fluxes=calibrator_flux, l_coordinates=calibrator_l,
                                         m_coordinates=calibrator_m)
-    visibility_model = get_observations_numba(sky_model, radio_telescope.baseline_table, frequency_range)
+    visibility_model = sky_model.create_visibility_model(radio_telescope.baseline_table, frequency_range)
     model_vectors = split_visibility((visibility_model[sorting_indices])).reshape([1, len(data_split)])
     #
     # print(data.shape)
@@ -107,8 +107,8 @@ def main(path, tol=0.1):
     gain_guess = numpy.zeros(2*n_antennas)
     gain_guess[::2] = 1
 
-    corrcal2.get_chisq(gain_guess*fac, data_split, sparse_matrix_object, ant1, ant2, scale_fac = fac)
-    corrcal2.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
+    corrcal.get_chisq(gain_guess*fac, data_split, sparse_matrix_object, ant1, ant2, scale_fac = fac)
+    corrcal.get_gradient(gain_guess*fac,  data_split, sparse_matrix_object, ant1, ant2, fac)
 
     # gain_solutions_split = fmin_cg(corrcal2.get_chisq, gain_guess * fac, corrcal2.get_gradient, (data_split, sparse_matrix_object, ant1, ant2, fac))/fac
     gain_solutions_complex = hybrid_calibration(data_split, noise_variance, covariance_vectors, model_vectors, edges,
