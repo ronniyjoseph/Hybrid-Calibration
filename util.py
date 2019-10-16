@@ -42,3 +42,19 @@ def generate_covariance_vectors(number_of_baselines, frequency_range):
     covariance_vectors *= sky_covariance(0, 0, frequency_range)
 
     return covariance_vectors
+
+
+def hexagonal_array(nside):
+    L = 14
+    dL = 12
+    antpos = []
+    cen_y, cen_z = 0, 0
+    for row in numpy.arange(nside):
+        for cen_x in numpy.arange((2 * nside - 1) - row):
+            dx = row / 2
+            antpos.append(((cen_x + dx) * L, row * dL, cen_z))
+            if row != 0:
+                antpos.append(((cen_x + dx) * L, -row * dL, cen_z))
+
+    return numpy.array(antpos)
+
