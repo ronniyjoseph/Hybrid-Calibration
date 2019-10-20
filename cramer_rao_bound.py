@@ -2,7 +2,9 @@ import sys
 import numpy
 from scipy.constants import c
 from scipy import sparse
+import matplotlib
 from matplotlib import pyplot
+
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 sys.path.append("../../redundant_calibration/code/")
 
@@ -14,7 +16,7 @@ from radiotelescope import BaselineTable
 from util import hexagonal_array
 
 
-def cramer_rao_bound_calculator(maximum_factor=7, nu=150e6, verbose=True):
+def cramer_rao_bound_calculator(maximum_factor=20, nu=150e6, verbose=True):
     position_precision = 1e-2
     broken_tile_fraction = 0.3
 
@@ -27,6 +29,13 @@ def cramer_rao_bound_calculator(maximum_factor=7, nu=150e6, verbose=True):
 
     # Initialise empty arrays for absolute calibration results
     absolute_gain_variance = numpy.zeros_like(redundancy_metric)
+
+    # Initialise empty array for thermal noise results
+    thermal_redundant_variance = numpy.zeros_like(redundancy_metric)
+
+    #Initialise empty array for sky calibrated results
+    sky_gain_variance = numpy.zeros_like(redundancy_metric)
+    thermal_sky_variance = numpy.zeros_like(redundancy_metric)
 
     for i in range(len(size_factor)):
         antenna_positions = hexagonal_array(size_factor[i])
@@ -49,35 +58,64 @@ def cramer_rao_bound_calculator(maximum_factor=7, nu=150e6, verbose=True):
             print("Populating matrices")
 
         redundant_crlb = relative_calibration_crlb(redundant_baselines, nu=nu, position_precision = position_precision,
-                                                   broken_tile_fraction= broken_tile_fraction )
-        absolute_crlb = absolute_calibration_crlb(redundant_baselines, nu=150e6)
+                                                   broken_tile_fraction= broken_tile_fraction)
+        absolute_crlb = absolute_calibration_crlb(redundant_baselines, nu=150e6, position_precision = position_precision)
 
         redundancy_metric[i] = len(antenna_positions[:, 0])
         relative_gain_variance[i] = numpy.median(numpy.diag(redundant_crlb))
         relative_gain_spread[i] = numpy.std(numpy.diag(redundant_crlb))
-
         absolute_gain_variance[i] = absolute_crlb
 
+        sky_gain_variance[i] = numpy.median(numpy.diag(sky_calibration_crlb(redundant_baselines)))
+
+        thermal_redundant_variance[i] = numpy.median(numpy.diag(thermal_redundant_crlb(redundant_baselines)))
+        thermal_sky_variance[i] = numpy.median(numpy.diag(thermal_sky_crlb(redundant_baselines)))
+
+
     full_gain_variance = absolute_gain_variance + relative_gain_variance
+
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
-    axes[0].plot(redundancy_metric, relative_gain_variance, label="Relative Cal")
+    axes[0].plot(redundancy_metric, relative_gain_variance, label="Relative (Redundant)")
     axes[0].set_ylabel("Gain Variance")
     axes[0].set_yscale('log')
 
-    axes[1].plot(redundancy_metric, relative_gain_spread)
-    axes[1].set_ylabel("Variance of relative variance")
-    axes[1].set_yscale('log')
+    # axes[1].plot(redundancy_metric, relative_gain_spread)
+    # axes[1].set_ylabel("Variance of relative variance")
+    # axes[1].set_yscale('log')
 
-    axes[0].plot(redundancy_metric, absolute_gain_variance, label="Absolute Cal")
+    axes[0].plot(redundancy_metric, absolute_gain_variance, label="Absolute (Sky based)")
 
-    axes[0].plot(redundancy_metric, full_gain_variance, label="Full Cal")
+    axes[0].plot(redundancy_metric, full_gain_variance, label="Combined (Sky + Redundant)")
+    axes[0].plot(redundancy_metric, thermal_redundant_variance, label="Thermal gain variance")
+
+
+    axes[1].semilogy(redundancy_metric, sky_gain_variance, label="Sky Based")
+    axes[1].semilogy(redundancy_metric, thermal_sky_variance, label="Thermal gain variance")
+
 
     axes[0].set_xlabel("Number of Antennas")
     axes[1].set_xlabel("Number of Antennas")
-    axes[0].legend()
 
+    axes[0].set_ylim([1e-6, 1])
+    axes[1].set_ylim([1e-6, 1])
+
+    axes[0].legend()
+    axes[1].legend()
     pyplot.show()
+    fig.savefig("Gain_Variance_Comparison.pdf")
     return
+
+
+def thermal_redundant_crlb(redundant_baselines, nu=150e6, SEFD = 20e3, B=40e3, t=120):
+    redundant_sky = numpy.sqrt(moment_returner(n_order=2))
+    jacobian_gain_matrix, red_tiles, red_groups = LogcalMatrixPopulator(redundant_baselines)
+
+    jacobian_gain_matrix[:, :len(red_tiles)] *= redundant_sky
+    thermal_noise = SEFD / numpy.sqrt(B * t)
+    redundant_fisher_information = numpy.dot(jacobian_gain_matrix.T, jacobian_gain_matrix) / thermal_noise
+
+    redundant_crlb = 2 * numpy.real(numpy.linalg.pinv(redundant_fisher_information))
+    return redundant_crlb[:len(red_tiles), :len(red_tiles)]
 
 
 def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2, broken_tile_fraction=1):
@@ -89,9 +127,59 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
                               position_variance(nu, position_precision=position_precision)
 
     redundant_fisher_information = numpy.dot(jacobian_gain_matrix.T, jacobian_gain_matrix) / non_redundancy_variance
+
     redundant_crlb = 2 * numpy.real(numpy.linalg.pinv(redundant_fisher_information))
 
     return redundant_crlb[:len(red_tiles), :len(red_tiles)]
+
+
+def thermal_sky_crlb(redundant_baselines, nu=150e6, SEFD = 20e3, B=40e3, t=120):
+    sky_based_model = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high = 10))
+    antenna_baseline_matrix, red_tiles, red_groups = LogcalMatrixPopulator(redundant_baselines)
+
+    jacobian_gain_matrix = antenna_baseline_matrix[:, :len(red_tiles)]*sky_based_model
+    thermal_noise = SEFD / numpy.sqrt(B * t)
+    redundant_fisher_information = numpy.dot(jacobian_gain_matrix.T, jacobian_gain_matrix) / thermal_noise
+
+    redundant_crlb = 2 * numpy.real(numpy.linalg.pinv(redundant_fisher_information))
+    return redundant_crlb[:len(red_tiles), :len(red_tiles)]
+
+
+def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2, broken_tile_fraction=1):
+    absolute_fim = 0
+    sky_based_model = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high = 10))
+    antenna_baseline_matrix, red_tiles, red_groups = LogcalMatrixPopulator(redundant_baselines)
+
+    non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
+                                              numpy.array([0, position_precision / c * nu]), nu)
+
+    jacobian_gain_matrix = antenna_baseline_matrix[:, :len(red_tiles)]*sky_based_model
+
+    groups = numpy.unique(redundant_baselines[:, 5])
+    for group_index in range(len(groups)):
+        number_of_redundant_baselines = len(redundant_baselines[redundant_baselines[:, 5] == groups[group_index], 5])
+        group_visibilities_indices = numpy.where(redundant_baselines[:, 5] == groups[group_index])[0]
+        group_start_index = numpy.min(group_visibilities_indices)
+        group_end_index = numpy.max(group_visibilities_indices)
+
+        # print("")
+        # print(f"Group {group_index} with {number_of_redundant_baselines} baselines ")
+
+        redundant_block = numpy.zeros((number_of_redundant_baselines, number_of_redundant_baselines)) + \
+                          non_redundant_covariance[0, 0]
+        # print("Created block of ones")
+        redundant_block = restructure_covariance_matrix(redundant_block, diagonal = non_redundant_covariance[0, 0],
+                                                        off_diagonal=non_redundant_covariance[0, 1])
+        # print("Restructured")
+        # print("Inverted Matrices")
+
+        absolute_fim += numpy.dot(numpy.dot(jacobian_gain_matrix[group_start_index:group_end_index + 1, :].T,
+                                            numpy.linalg.pinv(redundant_block)),
+                                  jacobian_gain_matrix[group_start_index:group_end_index+1, :])
+
+    sky_crlb = 2 * numpy.real(numpy.linalg.pinv(absolute_fim))
+
+    return sky_crlb
 
 
 def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=150e6):
@@ -103,8 +191,8 @@ def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=1
     return absolute_crlb
 
 
-def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1-2):
-    model_sky = numpy.sqrt(moment_returner(n_order=2, S_low=1))
+def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e-2):
+    model_sky = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high = 10))
     non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
                                               numpy.array([0, position_precision / c * nu]), nu)
 
@@ -116,32 +204,35 @@ def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1-
     jacobian_vector = numpy.zeros(len(redundant_baselines[:, 0])) + model_sky
 
     absolute_fim = numpy.dot(numpy.dot(jacobian_vector.T, numpy.linalg.pinv(ideal_unmodeled_covariance)), jacobian_vector)
-    absolute_crlb = 2 * numpy.real(1 / absolute_fim)
+
+    absolute_crlb = 2 * numpy.real(1 / (absolute_fim))
+
     return absolute_crlb
 
 
 def large_covariance_matrix(redundant_baselines, nu=150e6, position_precision = 1e-2):
     absolute_fim = 0
-    model_sky = numpy.sqrt(moment_returner(n_order=2, S_low=1))
+    model_sky = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high = 10))
     non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
                                               numpy.array([0, position_precision / c * nu]), nu)
-
     groups = numpy.unique(redundant_baselines[:, 5])
     for group_index in range(len(groups)):
         number_of_redundant_baselines = len(redundant_baselines[redundant_baselines[:, 5] == groups[group_index], 5])
         # print("")
         # print(f"Group {group_index} with {number_of_redundant_baselines} baselines ")
 
-        redundant_block = numpy.zeros((number_of_redundant_baselines, number_of_redundant_baselines)) + 1
+        redundant_block = numpy.zeros((number_of_redundant_baselines, number_of_redundant_baselines)) + \
+                          non_redundant_covariance[0, 0]
         # print("Created block of ones")
         redundant_block = restructure_covariance_matrix(redundant_block, diagonal = non_redundant_covariance[0, 0],
                                                         off_diagonal=non_redundant_covariance[0, 1])
         # print("Restructured")
-        inverse_block = numpy.linalg.pinv(redundant_block)
         # print("Inverted Matrices")
-        absolute_fim += numpy.sum(inverse_block)
+        jacobian_vector = numpy.zeros(number_of_redundant_baselines) + model_sky
 
-    absolute_crlb = 2 * numpy.real(1 / absolute_fim)
+        absolute_fim += numpy.dot(numpy.dot(jacobian_vector.T,  numpy.linalg.pinv(redundant_block)), jacobian_vector)
+
+    absolute_crlb = 2 * numpy.real(1 / (absolute_fim))
     return absolute_crlb
 
 
@@ -286,4 +377,5 @@ def LogcalMatrixPopulator(uv_positions):
 
 
 if __name__ == "__main__":
+
     cramer_rao_bound_calculator()
