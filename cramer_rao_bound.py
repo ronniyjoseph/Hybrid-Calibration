@@ -16,9 +16,30 @@ from radiotelescope import BaselineTable
 from util import hexagonal_array
 
 
-def cramer_rao_bound_calculator(maximum_factor=20, nu=150e6, verbose=True):
+def cramer_rao_bound_comparison(maximum_factor=3, nu=150e6, verbose=True, compute_data=True, load_data = False,
+                                save_output = True, make_plot = True, show_plot = False):
     position_precision = 1e-2
     broken_tile_fraction = 0.3
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/general_hex/"
+
+    if compute_data:
+        redundant_data, sky_data = cramer_rao_bound_calculator(maximum_factor, position_precision, broken_tile_fraction,
+                                                               nu=nu, verbose=verbose)
+        if save_output:
+            numpy.savetxt(output_path + "redundant_crlb.txt", redundant_data)
+            numpy.savetxt(output_path + "skymodel_crlb.txt", sky_data)
+    if load_data:
+        numpy.savetxt(output_path + "redundant_crlb.txt", redundant_data)
+        numpy.savetxt(output_path + "skymodel_crlb.txt", sky_data)
+    if make_plot:
+        plot_cramer_bound(redundant_data, sky_data, plot_path=output_path)
+        if show_plot:
+            pyplot.show()
+    return
+
+
+def cramer_rao_bound_calculator(maximum_factor=3, position_precision=1e-2, broken_tile_fraction=0.3, nu=150e6,
+                                verbose=True):
 
     size_factor = numpy.arange(2, maximum_factor + 1, 1)
 
@@ -33,7 +54,7 @@ def cramer_rao_bound_calculator(maximum_factor=20, nu=150e6, verbose=True):
     # Initialise empty array for thermal noise results
     thermal_redundant_variance = numpy.zeros_like(redundancy_metric)
 
-    #Initialise empty array for sky calibrated results
+    # Initialise empty array for sky calibrated results
     sky_gain_variance = numpy.zeros_like(redundancy_metric)
     thermal_sky_variance = numpy.zeros_like(redundancy_metric)
 
@@ -71,39 +92,11 @@ def cramer_rao_bound_calculator(maximum_factor=20, nu=150e6, verbose=True):
         thermal_redundant_variance[i] = numpy.median(numpy.diag(thermal_redundant_crlb(redundant_baselines)))
         thermal_sky_variance[i] = numpy.median(numpy.diag(thermal_sky_crlb(redundant_baselines)))
 
+    redundant_data = numpy.stack((redundancy_metric, relative_gain_variance, absolute_gain_variance,
+                                  thermal_redundant_variance))
+    sky_data = numpy.stack((redundancy_metric, relative_gain_variance, thermal_sky_variance))
 
-    full_gain_variance = absolute_gain_variance + relative_gain_variance
-
-    fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
-    axes[0].plot(redundancy_metric, relative_gain_variance, label="Relative (Redundant)")
-    axes[0].set_ylabel("Gain Variance")
-    axes[0].set_yscale('log')
-
-    # axes[1].plot(redundancy_metric, relative_gain_spread)
-    # axes[1].set_ylabel("Variance of relative variance")
-    # axes[1].set_yscale('log')
-
-    axes[0].plot(redundancy_metric, absolute_gain_variance, label="Absolute (Sky based)")
-
-    axes[0].plot(redundancy_metric, full_gain_variance, label="Combined (Sky + Redundant)")
-    axes[0].plot(redundancy_metric, thermal_redundant_variance, label="Thermal gain variance")
-
-
-    axes[1].semilogy(redundancy_metric, sky_gain_variance, label="Sky Based")
-    axes[1].semilogy(redundancy_metric, thermal_sky_variance, label="Thermal gain variance")
-
-
-    axes[0].set_xlabel("Number of Antennas")
-    axes[1].set_xlabel("Number of Antennas")
-
-    axes[0].set_ylim([1e-6, 1])
-    axes[1].set_ylim([1e-6, 1])
-
-    axes[0].legend()
-    axes[1].legend()
-    pyplot.show()
-    fig.savefig("Gain_Variance_Comparison.pdf")
-    return
+    return redundant_data, sky_data
 
 
 def thermal_redundant_crlb(redundant_baselines, nu=150e6, SEFD = 20e3, B=40e3, t=120):
@@ -374,6 +367,33 @@ def LogcalMatrixPopulator(uv_positions):
         amp_matrix[i, len(red_tiles) + index_group[0]] = 1
 
     return amp_matrix, red_tiles, red_groups
+
+
+def plot_cramer_bound(redundancy_metric, relative_gain_variance, absolute_gain_variance, thermal_redundant_variance,
+                      sky_gain_variance, thermal_sky_variance,  plot_path ):
+    fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
+    axes[0].plot(redundancy_metric, relative_gain_variance, label="Relative (Redundant)")
+    axes[0].set_ylabel("Gain Variance")
+    axes[0].set_yscale('log')
+
+    axes[0].plot(redundancy_metric, absolute_gain_variance, label="Absolute (Sky based)")
+
+    axes[0].plot(redundancy_metric, absolute_gain_variance + relative_gain_variance , label="Combined (Sky + Redundant)")
+    axes[0].plot(redundancy_metric, thermal_redundant_variance, "k--", label="Thermal gain variance")
+
+    axes[1].semilogy(redundancy_metric, sky_gain_variance, label="Sky Based")
+    axes[1].semilogy(redundancy_metric, thermal_sky_variance, "k--", label="Thermal gain variance")
+
+    axes[0].set_xlabel("Number of Antennas")
+    axes[1].set_xlabel("Number of Antennas")
+
+    axes[0].set_ylim([1e-6, 1])
+    axes[1].set_ylim([1e-6, 1])
+
+    axes[0].legend()
+    axes[1].legend()
+    fig.savefig(plot_path + "Gain_Variance_Comparison.pdf")
+    return
 
 
 if __name__ == "__main__":
