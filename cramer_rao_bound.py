@@ -29,8 +29,8 @@ def cramer_rao_bound_comparison(maximum_factor=3, nu=150e6, verbose=True, comput
             numpy.savetxt(output_path + "redundant_crlb.txt", redundant_data)
             numpy.savetxt(output_path + "skymodel_crlb.txt", sky_data)
     if load_data:
-        numpy.savetxt(output_path + "redundant_crlb.txt", redundant_data)
-        numpy.savetxt(output_path + "skymodel_crlb.txt", sky_data)
+        redundant_data = numpy.loadtxt(output_path + "redundant_crlb.txt")
+        sky_data = numpy.loadtxt(output_path + "skymodel_crlb.txt")
     if make_plot:
         plot_cramer_bound(redundant_data, sky_data, plot_path=output_path)
         if show_plot:
@@ -369,20 +369,19 @@ def LogcalMatrixPopulator(uv_positions):
     return amp_matrix, red_tiles, red_groups
 
 
-def plot_cramer_bound(redundancy_metric, relative_gain_variance, absolute_gain_variance, thermal_redundant_variance,
-                      sky_gain_variance, thermal_sky_variance,  plot_path ):
+def plot_cramer_bound(redundant_data, sky_data,  plot_path):
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
-    axes[0].plot(redundancy_metric, relative_gain_variance, label="Relative (Redundant)")
+    axes[0].plot(redundant_data[0, :], redundant_data[1, :], label="Relative (Redundant)")
     axes[0].set_ylabel("Gain Variance")
     axes[0].set_yscale('log')
 
-    axes[0].plot(redundancy_metric, absolute_gain_variance, label="Absolute (Sky based)")
+    axes[0].plot(redundant_data[0, :], redundant_data[2, :], label="Absolute (Sky based)")
 
-    axes[0].plot(redundancy_metric, absolute_gain_variance + relative_gain_variance , label="Combined (Sky + Redundant)")
-    axes[0].plot(redundancy_metric, thermal_redundant_variance, "k--", label="Thermal gain variance")
+    axes[0].plot(redundant_data[0, :], redundant_data[1, :] + redundant_data[2, :] , label="Combined (Sky + Redundant)")
+    axes[0].plot(redundant_data[0, :], redundant_data[3, :], "k--", label="Thermal gain variance")
 
-    axes[1].semilogy(redundancy_metric, sky_gain_variance, label="Sky Based")
-    axes[1].semilogy(redundancy_metric, thermal_sky_variance, "k--", label="Thermal gain variance")
+    axes[1].semilogy(sky_data[0, :], sky_data[1, :], label="Sky Based")
+    axes[1].semilogy(sky_data[0, :], sky_data[2, :], "k--", label="Thermal gain variance")
 
     axes[0].set_xlabel("Number of Antennas")
     axes[1].set_xlabel("Number of Antennas")
@@ -398,4 +397,4 @@ def plot_cramer_bound(redundancy_metric, relative_gain_variance, absolute_gain_v
 
 if __name__ == "__main__":
 
-    cramer_rao_bound_calculator()
+    cramer_rao_bound_comparison(maximum_factor=20 ,compute_data=True, load_data=False, make_plot=False)
