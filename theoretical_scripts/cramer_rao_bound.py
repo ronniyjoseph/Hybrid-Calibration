@@ -4,6 +4,8 @@ from scipy.constants import c
 from scipy import sparse
 import matplotlib
 from matplotlib import pyplot
+from ..core.util import hexagonal_array
+
 
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 sys.path.append("../../redundant_calibration/code/")
@@ -13,7 +15,6 @@ from analytic_covariance import moment_returner
 from radiotelescope import beam_width
 from radiotelescope import AntennaPositions
 from radiotelescope import BaselineTable
-from util import hexagonal_array
 
 
 def cramer_rao_bound_comparison(maximum_factor=3, nu=150e6, verbose=True, compute_data=True, load_data = False,
@@ -386,8 +387,8 @@ def plot_cramer_bound(redundant_data, sky_data,  plot_path):
     axes[0].set_xlabel("Number of Antennas")
     axes[1].set_xlabel("Number of Antennas")
 
-    axes[0].set_ylim([1e-6, 1])
-    axes[1].set_ylim([1e-6, 1])
+    axes[0].set_ylim([1e-7, 1])
+    axes[1].set_ylim([1e-7, 1])
 
     axes[0].legend()
     axes[1].legend()
@@ -397,4 +398,4 @@ def plot_cramer_bound(redundant_data, sky_data,  plot_path):
 
 if __name__ == "__main__":
 
-    cramer_rao_bound_comparison(maximum_factor=20 ,compute_data=True, load_data=False, make_plot=False)
+    cramer_rao_bound_comparison(maximum_factor=20 ,compute_data=False, load_data=True, make_plot=True)
