@@ -18,28 +18,27 @@ from cramer_rao_bound import redundant_baseline_finder
 import time
 
 
-def beam_covariance_simulation(hex_array=True, array_size=4, create_signal=True,
-                               load=False, compute_covariance=False, plot_covariance=True):
+def beam_covariance_simulation(array_size=3, create_signal=True, compute_covariance=False, plot_covariance=True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
-    project_path = "redundant_based_beam_covariance"
-    n_realisations = 1
+    project_path = "redundant_based_beam_covariance/"
+    n_realisations = 10000
 
     if not os.path.exists(output_path + project_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path + project_path)
-
+    hex_telescope = create_hex_telescope(array_size)
     if create_signal:
-        hex_telescope = create_hex_telescope(4)
         create_visibility_data(hex_telescope, n_realisations, output_path + project_path, output_data=True)
 
     if compute_covariance:
-        compute_covariance(baseline_table, frequency_range, output_path + project_path, n_realisations)
+        covariance = compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations)
+    if plot_covariance:
+        figure, axes = pyplot.subplots(1,1, figsize = (5,5))
+        axes.imshow(numpy.real(covariance))
+        axes.set_xlabel("Baseline Index")
+        axes.set_ylabel("Baseline Index")
 
-    #
-    # if plot_covariance:
-    #     #gain_covariance_impact(baseline_table, frequency_range, output_path + project_path)
-    #     residual_PS_error(baseline_table, frequency_range, output_path + project_path)
-    #
+        pyplot.show()
 
     return
 
@@ -84,14 +83,12 @@ def create_visibility_data(telescope_object, n_realisations, path, output_data=F
 
         model_visibilities = create_visibilities_analytic(source_population, redundant_table,
                                                            frequency_range = numpy.array([150e6]))
-        t1 = time.perf_counter()
         perturbed_visibilities = create_perturbed_visibilities(source_population, redundant_table, broken_flags)
-        t2 = time.perf_counter()
-        print(f"{t1 - t2} total perturb vis time")
-        residual_visibilities = model_visibilities - perturbed_visibilities
 
-        numpy.save(path +  "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities)
-        numpy.save(path +  "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities)
+        residual_visibilities = model_visibilities.flatten() - perturbed_visibilities
+
+        numpy.save(path + "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities)
+        numpy.save(path + "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities)
         numpy.save(path + "/" + "Simulated_Visibilities/" + f"residual_realisation_{i}", residual_visibilities)
     return
 
@@ -127,26 +124,19 @@ def apparent_flux_possibilities(source_population, number_of_dipoles=16, nu=150e
         beam_response[:, i] = broken_mwa_beam_loader(theta, phi, frequency=nu, faulty_dipole=faulty_dipole_i,
                                                      load=False)
         flux_beam_product[:, i] = beam_response[:, i] * source_population.fluxes
-
     apparent_fluxes = numpy.einsum('ij,ik->ijk', flux_beam_product, numpy.conj(beam_response))
     return apparent_fluxes
 
 
 def create_perturbed_visibilities(source_population, baseline_table, broken_flags, frequency = 150e6):
     observations = numpy.zeros(baseline_table.number_of_baselines, dtype = complex)
-    t1 = time.perf_counter()
     apparent_fluxes = apparent_flux_possibilities(source_population, nu = frequency)
-    t2 = time.perf_counter()
-    print(f"{t2-t1} Time fo generate fluxes ")
-
 
     flags_antenna1 = broken_flags[baseline_table.antenna_id1.astype(int)]
     flags_antenna2 = broken_flags[baseline_table.antenna_id2.astype(int)]
-    t3 = time.perf_counter()
     numba_perturbed_loop(observations, apparent_fluxes, source_population.l_coordinates, source_population.m_coordinates
                          , baseline_table.u(frequency), baseline_table.v(frequency), flags_antenna1, flags_antenna2)
-    t4 = time.perf_counter()
-    print(t4-t3)
+
     return observations
 
 
@@ -162,33 +152,32 @@ def numba_perturbed_loop(observations, fluxes, l_source, m_source, u_baselines, 
                                                    broken_flags2[baseline_index]] * kernel
 
 
-def compute_frequency_frequency_covariance_serial(baseline_table, frequency_range, path, n_realisations):
+def compute_baseline_covariance(telescope_object, path, n_realisations):
+    original_table = telescope_object.baseline_table
+    redundant_baselines = redundant_baseline_finder(original_table.antenna_id1, original_table.antenna_id2,
+                                                    original_table.u_coordinates, original_table.v_coordinates,
+                                                    original_table.w_coordinates, verbose=False)
+    redundant_table = BaselineTable()
+    redundant_table.antenna_id1 = redundant_baselines[:, 0]
+    redundant_table.antenna_id2 = redundant_baselines[:, 1]
+    redundant_table.u_coordinates = redundant_baselines[:, 2]
+    redundant_table.v_coordinates = redundant_baselines[:, 3]
+    redundant_table.w_coordinates = redundant_baselines[:, 4]
+    redundant_table.reference_frequency = 150e6
+    redundant_table.number_of_baselines = len(redundant_baselines[:, 0])
+
     if not os.path.exists(path + "/" + "Simulated_Covariance"):
         print("Creating realisation folder in Project path")
         os.makedirs(path + "/" + "Simulated_Covariance")
 
-    baseline_frequency_covariance = numpy.zeros((baseline_table.number_of_baselines, len(frequency_range),
-                                                 len(frequency_range)), dtype=complex)
+    residuals = numpy.zeros((redundant_table.number_of_baselines, n_realisations), dtype = complex)
+    for i in range(n_realisations):
+        residuals[:, i] = numpy.load(path + "Simulated_Visibilities/" + f"residual_realisation_{i}.npy")
 
-    for j in range(baseline_table.number_of_baselines):
-        noise_signal_ratio = numpy.zeros((len(frequency_range), n_realisations), dtype = complex)
+    baseline_covariance = numpy.cov(residuals)
+    numpy.save(path + f"baseline_beam_covariance", baseline_covariance)
 
-        if not j%100 and j != 0 or j == 1:
-            print(f"Estimated time to finish re-processing = {delta_t*(baseline_table.number_of_baselines - j)}")
-
-        t0 = time.perf_counter()
-        for i in range(n_realisations):
-            model_signal = numpy.load(path + f"model_realisation_{i}.npy")
-            residual_signal = numpy.load(path + f"residual_realisation_{i}.npy")
-            noise_signal_ratio[:, i] = residual_signal[j, :] / model_signal[j, :]
-
-        baseline_frequency_covariance[j, ...] = numpy.cov(noise_signal_ratio)
-        t1 = time.perf_counter()
-        delta_t = t1 - t0
-
-    numpy.save(path + f"frequency_frequency_covariance", baseline_frequency_covariance)
-
-    return baseline_frequency_covariance
+    return baseline_covariance
 
 
 
