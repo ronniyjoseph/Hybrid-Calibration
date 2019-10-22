@@ -84,8 +84,10 @@ def create_visibility_data(telescope_object, n_realisations, path, output_data=F
 
         model_visibilities = create_visibilities_analytic(source_population, redundant_table,
                                                            frequency_range = numpy.array([150e6]))
+        t1 = time.perf_counter()
         perturbed_visibilities = create_perturbed_visibilities(source_population, redundant_table, broken_flags)
-
+        t2 = time.perf_counter()
+        print(f"{t1 - t2} total perturb vis time")
         residual_visibilities = model_visibilities - perturbed_visibilities
 
         numpy.save(path +  "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities)
@@ -132,12 +134,19 @@ def apparent_flux_possibilities(source_population, number_of_dipoles=16, nu=150e
 
 def create_perturbed_visibilities(source_population, baseline_table, broken_flags, frequency = 150e6):
     observations = numpy.zeros(baseline_table.number_of_baselines, dtype = complex)
+    t1 = time.perf_counter()
     apparent_fluxes = apparent_flux_possibilities(source_population, nu = frequency)
+    t2 = time.perf_counter()
+    print(f"{t2-t1} Time fo generate fluxes ")
+
+
     flags_antenna1 = broken_flags[baseline_table.antenna_id1.astype(int)]
     flags_antenna2 = broken_flags[baseline_table.antenna_id2.astype(int)]
-
+    t3 = time.perf_counter()
     numba_perturbed_loop(observations, apparent_fluxes, source_population.l_coordinates, source_population.m_coordinates
                          , baseline_table.u(frequency), baseline_table.v(frequency), flags_antenna1, flags_antenna2)
+    t4 = time.perf_counter()
+    print(t4-t3)
     return observations
 
 
