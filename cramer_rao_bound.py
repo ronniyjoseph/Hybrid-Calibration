@@ -372,14 +372,17 @@ def LogcalMatrixPopulator(uv_positions):
 
 def plot_cramer_bound(redundant_data, sky_data,  plot_path):
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
+    axes[0].plot(redundant_data[0, :], redundant_data[1, :] + redundant_data[2, :] , label="Combined (Sky + Redundant)")
+
     axes[0].plot(redundant_data[0, :], redundant_data[1, :], label="Relative (Redundant)")
-    axes[0].set_ylabel("Gain Variance")
-    axes[0].set_yscale('log')
+
 
     axes[0].plot(redundant_data[0, :], redundant_data[2, :], label="Absolute (Sky based)")
 
-    axes[0].plot(redundant_data[0, :], redundant_data[1, :] + redundant_data[2, :] , label="Combined (Sky + Redundant)")
     axes[0].plot(redundant_data[0, :], redundant_data[3, :], "k--", label="Thermal gain variance")
+    axes[0].set_ylabel("Gain Variance")
+    axes[0].set_yscale('log')
+
 
     axes[1].semilogy(sky_data[0, :], sky_data[1, :], label="Sky Based")
     axes[1].semilogy(sky_data[0, :], sky_data[2, :], "k--", label="Thermal gain variance")
