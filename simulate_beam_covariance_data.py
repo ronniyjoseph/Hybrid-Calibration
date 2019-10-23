@@ -14,14 +14,15 @@ from radiotelescope import broken_mwa_beam_loader
 from skymodel import SkyRealisation
 from skymodel import create_visibilities_analytic
 from generaltools import from_lm_to_theta_phi
+from plottools import colorbar
 from cramer_rao_bound import redundant_baseline_finder
 import time
 
 
-def beam_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
+def beam_covariance_simulation(array_size=3, create_signal=True, compute_covariance=False, plot_covariance=False,
                                show_plot=True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
-    project_path = "redundant_based_beam_covariance/"
+    project_path = "Test/"
     n_realisations = 3465
 
     if not os.path.exists(output_path + project_path + "/"):
@@ -32,18 +33,12 @@ def beam_covariance_simulation(array_size=3, create_signal=False, compute_covari
         create_visibility_data(hex_telescope, n_realisations, output_path + project_path, output_data=True)
 
     if compute_covariance:
-        covariance = compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations)
-    if plot_covariance:
-        figure, axes = pyplot.subplots(1,2, figsize = (10,5))
-        axes[0].imshow(numpy.real(covariance))
-        axes[0].set_title("Real - Baseline Position Covariance ")
-        axes[0].set_xlabel("Baseline Index")
-        axes[0].set_ylabel("Baseline Index")
+        compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='model')
+        compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='perturbed')
+        compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='residual')
 
-        axes[1].imshow(numpy.imag(covariance))
-        axes[1].set_title("Imaginary - Baseline Position Covariance ")
-        axes[1].set_xlabel("Baseline Index")
-        figure.savefig(output_path + project_path + "Beam_Covariance_Plot.pdf")
+    if plot_covariance:
+        plot_covariance_data(output_path + project_path, simulation_type = "Beam")
         if show_plot:
             pyplot.show()
 
@@ -94,9 +89,9 @@ def create_visibility_data(telescope_object, n_realisations, path, output_data=F
 
         residual_visibilities = model_visibilities.flatten() - perturbed_visibilities
 
-        numpy.save(path + "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities)
-        numpy.save(path + "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities)
-        numpy.save(path + "/" + "Simulated_Visibilities/" + f"residual_realisation_{i}", residual_visibilities)
+        # numpy.save(path + "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities)
+        # numpy.save(path + "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities)
+        # numpy.save(path + "/" + "Simulated_Visibilities/" + f"residual_realisation_{i}", residual_visibilities)
     return
 
 
@@ -159,7 +154,7 @@ def numba_perturbed_loop(observations, fluxes, l_source, m_source, u_baselines, 
                                                    broken_flags2[baseline_index]] * kernel
 
 
-def compute_baseline_covariance(telescope_object, path, n_realisations):
+def compute_baseline_covariance(telescope_object, path, n_realisations, data_type = "residual"):
     original_table = telescope_object.baseline_table
     redundant_baselines = redundant_baseline_finder(original_table.antenna_id1, original_table.antenna_id2,
                                                     original_table.u_coordinates, original_table.v_coordinates,
@@ -179,13 +174,43 @@ def compute_baseline_covariance(telescope_object, path, n_realisations):
 
     residuals = numpy.zeros((redundant_table.number_of_baselines, n_realisations), dtype = complex)
     for i in range(n_realisations):
-        residuals[:, i] = numpy.load(path + "Simulated_Visibilities/" + f"residual_realisation_{i}.npy")
+        residuals[:, i] = numpy.load(path + "Simulated_Visibilities/" + f"{data_type}_realisation_{i}.npy").flatten()
 
     baseline_covariance = numpy.cov(residuals)
-    numpy.save(path + f"baseline_beam_covariance", baseline_covariance)
+    numpy.save(path + "Simulated_Covariance/" + f"baseline_{data_type}_covariance", baseline_covariance)
 
-    return baseline_covariance
+    return
 
+
+def plot_covariance_data(path, simulation_type = "Unspecified"):
+    if not os.path.exists(path + "/" + "Plots"):
+        print("Creating realisation folder in Project path")
+        os.makedirs(path + "/" + "Plots")
+    data_labels =['Ideal', 'Perturbed', 'Residual']
+
+    data = []
+    data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_model_covariance.npy"))
+    data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_perturbed_covariance.npy"))
+    data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_residual_covariance.npy"))
+
+    figure, axes = pyplot.subplots(3, 2, figsize=(6.5, 10))
+    figure.suptitle(f"Baseline {simulation_type} Covariance")
+    for i in range(3):
+        realplot = axes[i, 0].imshow(numpy.real(data[i]))
+        imagplot = axes[i, 1].imshow(numpy.imag(data[i]))
+        colorbar(realplot)
+        colorbar(imagplot)
+
+        axes[i, 0].set_title(f"Re({data_labels[i]})")
+        axes[i, 1].set_title(f"Im({data_labels[i]}) ")
+
+        axes[i, 0].set_ylabel("Baseline Index")
+        if i == 2:
+            axes[i, 0].set_xlabel("Baseline Index")
+            axes[i, 1].set_xlabel("Baseline Index")
+    figure.subplots_adjust(top=0.8)
+    figure.savefig(path + "Plots/" +f"{simulation_type}_Covariance_Plot.pdf")
+    return
 
 
 if __name__ == "__main__":
