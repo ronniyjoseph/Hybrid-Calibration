@@ -5,23 +5,22 @@ from scipy import sparse
 import matplotlib
 from matplotlib import pyplot
 from src.util import hexagonal_array
-
+from src.util import redundant_baseline_finder
+from src.radiotelescope import beam_width
+from src.radiotelescope import AntennaPositions
+from src.radiotelescope import BaselineTable
+from src.radiotelescope import RadioTelescope
 
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
-sys.path.append("../../redundant_calibration/code/")
 
-from SCAR.GeneralTools import unique_value_finder
 from analytic_covariance import moment_returner
-from radiotelescope import beam_width
-from radiotelescope import AntennaPositions
-from radiotelescope import BaselineTable
 
 
-def cramer_rao_bound_comparison(maximum_factor=3, nu=150e6, verbose=True, compute_data=True, load_data = False,
+def cramer_rao_bound_comparison(maximum_factor=8, nu=150e6, verbose=True, compute_data=True, load_data = False,
                                 save_output = True, make_plot = True, show_plot = False):
     position_precision = 1e-2
     broken_tile_fraction = 0.3
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/general_hex/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/test/"
 
     if compute_data:
         redundant_data, sky_data = cramer_rao_bound_calculator(maximum_factor, position_precision, broken_tile_fraction,
@@ -73,9 +72,7 @@ def cramer_rao_bound_calculator(maximum_factor=3, position_precision=1e-2, broke
             print(f"Hexagonal array with size {size_factor[i]}")
             print("Finding redundant baselines")
 
-        redundant_baselines = redundant_baseline_finder(baseline_table.antenna_id1, baseline_table.antenna_id2,
-                                                        baseline_table.u_coordinates, baseline_table.v_coordinates,
-                                                        baseline_table.w_coordinates, verbose=False)
+        redundant_baselines = redundant_baseline_finder(baseline_table)
         if verbose:
             print("Populating matrices")
 
@@ -149,10 +146,10 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
 
     jacobian_gain_matrix = antenna_baseline_matrix[:, :len(red_tiles)]*sky_based_model
 
-    groups = numpy.unique(redundant_baselines[:, 5])
+    groups = numpy.unique(redundant_baselines.group_indices)
     for group_index in range(len(groups)):
-        number_of_redundant_baselines = len(redundant_baselines[redundant_baselines[:, 5] == groups[group_index], 5])
-        group_visibilities_indices = numpy.where(redundant_baselines[:, 5] == groups[group_index])[0]
+        number_of_redundant_baselines = len(redundant_baselines.group_indices[redundant_baselines.group_indices == groups[group_index]])
+        group_visibilities_indices = numpy.where(redundant_baselines.group_indices == groups[group_index])[0]
         group_start_index = numpy.min(group_visibilities_indices)
         group_end_index = numpy.max(group_visibilities_indices)
 
@@ -177,9 +174,9 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
 
 
 def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=150e6):
-    if len(redundant_baselines) < 5000:
+    if redundant_baselines.number_of_baselines < 5000:
         absolute_crlb = small_covariance_matrix(redundant_baselines, nu, position_precision)
-    elif len(redundant_baselines) > 5000:
+    elif redundant_baselines.number_of_baselines > 5000:
         print("Going Block Mode")
         absolute_crlb = large_covariance_matrix(redundant_baselines, nu, position_precision)
     return absolute_crlb
@@ -190,12 +187,12 @@ def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e
     non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
                                               numpy.array([0, position_precision / c * nu]), nu)
 
-    ideal_unmodeled_covariance = sky_covariance(redundant_baselines[:, 2], redundant_baselines[:, 3], nu)
+    ideal_unmodeled_covariance = sky_covariance(redundant_baselines.u_coordinates, redundant_baselines.v_coordinates, nu)
     ideal_unmodeled_covariance = restructure_covariance_matrix(ideal_unmodeled_covariance,
                                                                diagonal=non_redundant_covariance[0, 0],
                                                                off_diagonal=non_redundant_covariance[0, 1])
 
-    jacobian_vector = numpy.zeros(len(redundant_baselines[:, 0])) + model_sky
+    jacobian_vector = numpy.zeros(redundant_baselines.number_of_baselines) + model_sky
 
     absolute_fim = numpy.dot(numpy.dot(jacobian_vector.T, numpy.linalg.pinv(ideal_unmodeled_covariance)), jacobian_vector)
 
@@ -209,9 +206,10 @@ def large_covariance_matrix(redundant_baselines, nu=150e6, position_precision = 
     model_sky = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high = 10))
     non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
                                               numpy.array([0, position_precision / c * nu]), nu)
-    groups = numpy.unique(redundant_baselines[:, 5])
+    groups = numpy.unique(redundant_baselines.group_indices)
     for group_index in range(len(groups)):
-        number_of_redundant_baselines = len(redundant_baselines[redundant_baselines[:, 5] == groups[group_index], 5])
+        number_of_redundant_baselines = len(redundant_baselines.group_indices[redundant_baselines.group_indices ==
+                                                                              groups[group_index]])
         # print("")
         # print(f"Group {group_index} with {number_of_redundant_baselines} baselines ")
 
@@ -272,97 +270,22 @@ def position_variance(nu, position_precision=10e-3):
     return variance
 
 
-def redundant_baseline_finder(antenna_id1, antenna_id2, u, v, w, baseline_direction=None, group_minimum=3,
-                              threshold=1 / 6, verbose=False):
-    """
-
-    antenna_id1:
-    antenna_id2:
-    u:
-    v:
-    w:
-    baseline_direction:
-    group_minimum:
-    threshold:
-    verbose:
-    :return:
-    """
-    n_baselines = u.shape[0]
-    # create empty table
-    baseline_selection = numpy.zeros((n_baselines, 6))
-    # arbitrary counters
-    # Let's find all the redundant baselines within our threshold
-    group_counter = 0
-    k = 0
-    # Go through all antennas, take each antenna out and all antennas
-    # which are part of the not redundant enough group
-    while u.shape[0] > 0:
-        # calculate uv separation at the calibration wavelength
-        separation = numpy.sqrt((u - u[0]) ** 2. + (v - v[0]) ** 2.)
-        # find all baselines within the lambda fraction
-        select_indices = numpy.where(separation <= threshold)
-
-        # is this number larger than the minimum number
-        if len(select_indices[0]) >= group_minimum:
-            # go through the selected baselines
-
-            for i in range(len(select_indices[0])):
-                # add antenna number
-                baseline_selection[k, 0] = antenna_id1[select_indices[0][i]]
-                baseline_selection[k, 1] = antenna_id2[select_indices[0][i]]
-                # add coordinates uvw
-                baseline_selection[k, 2] = u[select_indices[0][i]]
-                baseline_selection[k, 3] = v[select_indices[0][i]]
-                baseline_selection[k, 4] = w[select_indices[0][i]]
-                # add baseline group identifier
-                baseline_selection[k, 5] = 50000000 + 52 * (group_counter + 1)
-                k += 1
-            group_counter += 1
-        # update the list, take out the used antennas
-        all_indices = numpy.arange(len(u))
-        unselected_indices = numpy.setdiff1d(all_indices, select_indices[0])
-
-        antenna_id1 = antenna_id1[unselected_indices]
-        antenna_id2 = antenna_id2[unselected_indices]
-        u = u[unselected_indices]
-        v = v[unselected_indices]
-        w = w[unselected_indices]
-
-    if verbose:
-        print("There are", k, "redundant baselines in this array.")
-        print("There are", group_counter, "redundant groups in this array")
-
-    # find the filled entries
-    non_zero_indices = numpy.where(baseline_selection[:, 0] != 0)
-    # remove the empty entries
-    baseline_selection = baseline_selection[non_zero_indices[0], :]
-    # Sort on length
-    baseline_lengths = numpy.sqrt(baseline_selection[:, 2] ** 2 + baseline_selection[:, 3] ** 2)
-
-    # sorted_baselines = baseline_selection[numpy.argsort(baseline_lengths), :]
-
-    # sorted_baselines = baseline_selection[numpy.argsort(sorted_baselines[:, 5]), :]
-    # sorted_baselines = sorted_baselines[numpy.argsort(sorted_baselines[:,1,middle_index]),:,:]
-    # if we want only the EW select all the  uv positions around v = 0
-    return baseline_selection
-
-
 def LogcalMatrixPopulator(uv_positions):
     # so first we sort out the unique antennas
     # and the unique redudant groups, this will allows us to populate the matrix adequately
-    red_tiles = unique_value_finder(uv_positions[:, 0:2], 'values')
+    antenna_indices = numpy.stack((uv_positions.antenna_id1, uv_positions.antenna_id2))
+    red_tiles = numpy.unique(antenna_indices)
     # it's not really finding unique antennas, it just finds unique values
-    red_groups = unique_value_finder(uv_positions[:, 5], 'values')
+    red_groups = numpy.unique(uv_positions.group_indices)
     # print "There are", len(red_tiles), "redundant tiles"
     # print ""
     # print "Creating the equation matrix"
     # create am empty matrix (#measurements)x(#tiles + #redundant groups)
-    amp_matrix = numpy.zeros((len(uv_positions), len(red_tiles) + len(red_groups)))
-    for i in range(len(uv_positions)):
-        index1 = numpy.where(red_tiles == uv_positions[i, 0])
-        index2 = numpy.where(red_tiles == uv_positions[i, 1])
-        index_group = numpy.where(red_groups == uv_positions[i, 5])
-
+    amp_matrix = numpy.zeros((uv_positions.number_of_baselines, len(red_tiles) + len(red_groups)))
+    for i in range(uv_positions.number_of_baselines):
+        index1 = numpy.where(red_tiles == uv_positions.antenna_id1[i])
+        index2 = numpy.where(red_tiles == uv_positions.antenna_id2[i])
+        index_group = numpy.where(red_groups == uv_positions.group_indices[i])
         amp_matrix[i, index1[0]] = 1
         amp_matrix[i, index2[0]] = 1
         amp_matrix[i, len(red_tiles) + index_group[0]] = 1
@@ -370,19 +293,41 @@ def LogcalMatrixPopulator(uv_positions):
     return amp_matrix, red_tiles, red_groups
 
 
+def telescope_bounds(position_path, bound_type = "redundant", nu = 150e6, position_precision = 1e-2,
+                     broken_tile_fraction = 0.3 ):
+    telescope = RadioTelescope(load=True, path=position_path)
+
+    if bound_type == "redundant":
+        baseline_table = redundant_baseline_finder(telescope.baseline_table)
+        redundant_crlb = relative_calibration_crlb(baseline_table, nu=nu, position_precision=position_precision,
+                                                   broken_tile_fraction=broken_tile_fraction)
+        absolute_crlb = absolute_calibration_crlb(baseline_table, nu=150e6, position_precision=position_precision)
+        bound = [numpy.median(numpy.diag(redundant_crlb)), absolute_crlb]
+    elif bound_type == "sky":
+        baseline_table = telescope.baseline_table
+        bound = numpy.median(numpy.diag(sky_calibration_crlb(baseline_table)))
+
+    return bound
+
+
 def plot_cramer_bound(redundant_data, sky_data,  plot_path):
+    hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
+    hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
+    mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
+
+    mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
+    mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
+    hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
+    ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
+
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
     axes[0].plot(redundant_data[0, :], redundant_data[1, :] + redundant_data[2, :] , label="Combined (Sky + Redundant)")
 
     axes[0].plot(redundant_data[0, :], redundant_data[1, :], label="Relative (Redundant)")
-
-
     axes[0].plot(redundant_data[0, :], redundant_data[2, :], label="Absolute (Sky based)")
-
     axes[0].plot(redundant_data[0, :], redundant_data[3, :], "k--", label="Thermal gain variance")
     axes[0].set_ylabel("Gain Variance")
     axes[0].set_yscale('log')
-
 
     axes[1].semilogy(sky_data[0, :], sky_data[1, :], label="Sky Based")
     axes[1].semilogy(sky_data[0, :], sky_data[2, :], "k--", label="Thermal gain variance")
@@ -401,4 +346,4 @@ def plot_cramer_bound(redundant_data, sky_data,  plot_path):
 
 if __name__ == "__main__":
 
-    cramer_rao_bound_comparison(maximum_factor=20 ,compute_data=False, load_data=True, make_plot=True)
+    cramer_rao_bound_comparison()
