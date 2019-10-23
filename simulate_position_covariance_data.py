@@ -15,10 +15,11 @@ from cramer_rao_bound import redundant_baseline_finder
 from simulate_beam_covariance_data import compute_baseline_covariance
 from simulate_beam_covariance_data import create_hex_telescope
 from simulate_beam_covariance_data import plot_covariance_data
+from simulate_beam_covariance_data import redundant_table
 import time
 
 
-def position_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
+def position_covariance_simulation(array_size=3, create_signal=True, compute_covariance=False, plot_covariance=False,
                                    show_plot = True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
     project_path = "Test"
@@ -29,7 +30,8 @@ def position_covariance_simulation(array_size=3, create_signal=False, compute_co
         os.makedirs(output_path + project_path)
     hex_telescope = create_hex_telescope(array_size)
     if create_signal:
-        create_visibility_data(hex_telescope, position_precision, n_realisations, output_path + project_path, output_data=True)
+        create_visibility_data(hex_telescope, position_precision, n_realisations, output_path + project_path,
+                               output_data=True)
 
     if compute_covariance:
         compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='model')
@@ -50,22 +52,24 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
         print("Creating realisation folder in Project path")
         os.makedirs(path + "/" + "Simulated_Visibilities")
 
+    ideal_baselines = redundant_table(telescope_object.baseline_table)
+
     for i in range(n_realisations):
         print(f"Realisation {i}")
-        source_population = SkyRealisation(sky_type='random', flux_high=1)
-        ideal_baselines = redundant_table(telescope_object.baseline_table)
+        source_population = SkyRealisation(sky_type='random', flux_high=1, seed = i)
 
         perturbed_telescope = copy.deepcopy(telescope_object)
         number_antennas = len(perturbed_telescope.antenna_positions.x_coordinates)
-        perturbed_telescope.antenna_positions.x_coordinates += numpy.random.normal(0, position_precision, number_antennas)
-        perturbed_telescope.antenna_positions.y_coordinates += numpy.random.normal(0, position_precision, number_antennas)
+        x_offsets = numpy.random.normal(0, position_precision, number_antennas)
+        y_offsets = numpy.random.normal(0, position_precision, number_antennas)
+        perturbed_telescope.antenna_positions.x_coordinates += x_offsets
+        perturbed_telescope.antenna_positions.y_coordinates += y_offsets
 
         perturbed_telescope.baseline_table = BaselineTable(position_table = perturbed_telescope.antenna_positions)
-
         perturbed_baselines = redundant_table(perturbed_telescope.baseline_table)
 
         model_visibilities = create_visibilities_analytic(source_population, ideal_baselines,
-                                                           frequency_range = numpy.array([150e6]))
+                                                          frequency_range = numpy.array([150e6]))
 
         perturbed_visibilities = create_visibilities_analytic(source_population, perturbed_baselines,
                                                            frequency_range = numpy.array([150e6]))
@@ -78,19 +82,6 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
     return
 
 
-def redundant_table(original_table):
-    redundant_baselines = redundant_baseline_finder(original_table.antenna_id1, original_table.antenna_id2,
-                                                    original_table.u_coordinates, original_table.v_coordinates,
-                                                    original_table.w_coordinates, verbose=False)
-    redundant_table = BaselineTable()
-    redundant_table.antenna_id1 = redundant_baselines[:, 0]
-    redundant_table.antenna_id2 = redundant_baselines[:, 1]
-    redundant_table.u_coordinates = redundant_baselines[:, 2]
-    redundant_table.v_coordinates = redundant_baselines[:, 3]
-    redundant_table.w_coordinates = redundant_baselines[:, 4]
-    redundant_table.reference_frequency = 150e6
-    redundant_table.number_of_baselines = len(redundant_baselines[:, 0])
-    return redundant_table
 
 if __name__ == "__main__":
     position_covariance_simulation()
