@@ -12,13 +12,13 @@ from radiotelescope import BaselineTable
 from skymodel import SkyRealisation
 from skymodel import create_visibilities_analytic
 from cramer_rao_bound import redundant_baseline_finder
-from simulate_covariance_data import compute_baseline_covariance
-from simulate_covariance_data import create_hex_telescope
+from simulate_beam_covariance_data import compute_baseline_covariance
+from simulate_beam_covariance_data import create_hex_telescope
 
 import time
 
 
-def position_covariance_simulation(array_size=3, create_signal=True, compute_covariance=False, plot_covariance=True,
+def position_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
                                    show_plot = True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
     project_path = "redundant_based_position_covariance/"
@@ -34,7 +34,7 @@ def position_covariance_simulation(array_size=3, create_signal=True, compute_cov
     if compute_covariance:
         covariance = compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations)
     if plot_covariance:
-        figure, axes = pyplot.subplots(1,2, figsize = (5,5))
+        figure, axes = pyplot.subplots(1,2, figsize = (10,5))
         axes[0].imshow(numpy.real(covariance))
         axes[0].set_title("Real - Baseline Position Covariance ")
         axes[0].set_xlabel("Baseline Index")
@@ -43,6 +43,8 @@ def position_covariance_simulation(array_size=3, create_signal=True, compute_cov
         axes[1].imshow(numpy.imag(covariance))
         axes[1].set_title("Imaginary - Baseline Position Covariance ")
         axes[1].set_xlabel("Baseline Index")
+        figure.savefig(output_path + project_path + "Position_Covariance_Plot.pdf")
+
         if show_plot:
             pyplot.show()
 

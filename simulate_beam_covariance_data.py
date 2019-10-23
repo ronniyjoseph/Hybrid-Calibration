@@ -22,7 +22,7 @@ def beam_covariance_simulation(array_size=3, create_signal=False, compute_covari
                                show_plot=True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
     project_path = "redundant_based_beam_covariance/"
-    n_realisations = 10000
+    n_realisations = 3465
 
     if not os.path.exists(output_path + project_path + "/"):
         print("Creating Project folder at output destination!")
@@ -34,11 +34,16 @@ def beam_covariance_simulation(array_size=3, create_signal=False, compute_covari
     if compute_covariance:
         covariance = compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations)
     if plot_covariance:
-        figure, axes = pyplot.subplots(1,1, figsize = (5,5))
-        axes.imshow(numpy.real(covariance))
-        axes.set_xlabel("Baseline Index")
-        axes.set_ylabel("Baseline Index")
+        figure, axes = pyplot.subplots(1,2, figsize = (10,5))
+        axes[0].imshow(numpy.real(covariance))
+        axes[0].set_title("Real - Baseline Position Covariance ")
+        axes[0].set_xlabel("Baseline Index")
+        axes[0].set_ylabel("Baseline Index")
 
+        axes[1].imshow(numpy.imag(covariance))
+        axes[1].set_title("Imaginary - Baseline Position Covariance ")
+        axes[1].set_xlabel("Baseline Index")
+        figure.savefig(output_path + project_path + "Beam_Covariance_Plot.pdf")
         if show_plot:
             pyplot.show()
 
