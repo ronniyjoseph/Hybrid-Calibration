@@ -69,7 +69,7 @@ def create_visibility_data(telescope_object, n_realisations, path, output_data=F
     for i in range(n_realisations):
         print(f"Realisation {i}")
         broken_flags = broken_tiles(telescope_object, seed=i)
-        source_population = SkyRealisation(sky_type='random', flux_high=1)
+        source_population = SkyRealisation(sky_type='random', flux_high=1, seed = i)
         original_table = telescope_object.baseline_table
         redundant_baselines = redundant_baseline_finder(original_table.antenna_id1, original_table.antenna_id2,
                                                         original_table.u_coordinates, original_table.v_coordinates,
