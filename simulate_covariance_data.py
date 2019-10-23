@@ -18,7 +18,8 @@ from cramer_rao_bound import redundant_baseline_finder
 import time
 
 
-def beam_covariance_simulation(array_size=3, create_signal=True, compute_covariance=False, plot_covariance=True):
+def beam_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
+                               show_plot=True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
     project_path = "redundant_based_beam_covariance/"
     n_realisations = 10000
@@ -38,7 +39,8 @@ def beam_covariance_simulation(array_size=3, create_signal=True, compute_covaria
         axes.set_xlabel("Baseline Index")
         axes.set_ylabel("Baseline Index")
 
-        pyplot.show()
+        if show_plot:
+            pyplot.show()
 
     return
 
