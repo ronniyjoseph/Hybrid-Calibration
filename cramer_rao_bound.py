@@ -16,11 +16,11 @@ sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 from analytic_covariance import moment_returner
 
 
-def cramer_rao_bound_comparison(maximum_factor=8, nu=150e6, verbose=True, compute_data=True, load_data = False,
+def cramer_rao_bound_comparison(maximum_factor=8, nu=150e6, verbose=True, compute_data=False, load_data = True,
                                 save_output = True, make_plot = True, show_plot = False):
     position_precision = 1e-2
     broken_tile_fraction = 0.3
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/test/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/general_hex/"
 
     if compute_data:
         redundant_data, sky_data = cramer_rao_bound_calculator(maximum_factor, position_precision, broken_tile_fraction,
@@ -296,7 +296,7 @@ def LogcalMatrixPopulator(uv_positions):
 def telescope_bounds(position_path, bound_type = "redundant", nu = 150e6, position_precision = 1e-2,
                      broken_tile_fraction = 0.3 ):
     telescope = RadioTelescope(load=True, path=position_path)
-
+    number_antennas = telescope.antenna_positions.number_antennas()
     if bound_type == "redundant":
         baseline_table = redundant_baseline_finder(telescope.baseline_table)
         redundant_crlb = relative_calibration_crlb(baseline_table, nu=nu, position_precision=position_precision,
@@ -307,30 +307,34 @@ def telescope_bounds(position_path, bound_type = "redundant", nu = 150e6, positi
         baseline_table = telescope.baseline_table
         bound = numpy.median(numpy.diag(sky_calibration_crlb(baseline_table)))
 
-    return bound
+    return number_antennas, bound
 
 
 def plot_cramer_bound(redundant_data, sky_data,  plot_path):
-    hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
-    hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
-    mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
+    hera_350_antennas, hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
+    hera_128_antennas, hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
+    mwa_hexes_antennas, mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
 
-    mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
-    mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
-    hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
-    ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
+    # mwa_hexes_antennas, mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
+    # mwa_compact_antennas, mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
+    # hera_350_antennas, hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
+    # sky_low_antennas, ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
 
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
-    axes[0].plot(redundant_data[0, :], redundant_data[1, :] + redundant_data[2, :] , label="Combined (Sky + Redundant)")
+    axes[0].plot(redundant_data[0, :], redundant_data[1, :] + redundant_data[2, :] , label="Total")
 
-    axes[0].plot(redundant_data[0, :], redundant_data[1, :], label="Relative (Redundant)")
-    axes[0].plot(redundant_data[0, :], redundant_data[2, :], label="Absolute (Sky based)")
-    axes[0].plot(redundant_data[0, :], redundant_data[3, :], "k--", label="Thermal gain variance")
+    axes[0].plot(redundant_data[0, :], redundant_data[1, :], label="Relative")
+    axes[0].plot(redundant_data[0, :], redundant_data[2, :], label="Absolute")
+    axes[0].plot(redundant_data[0, :], redundant_data[3, :], "k--", label="Thermal")
+
+    axes[0].plot(hera_350_antennas, hera_350_redundant[0] + hera_350_redundant[1], marker ='H', label="HERA 350")
+    axes[0].plot(hera_128_antennas, hera_128_redundant[0] + hera_128_redundant[1], marker ="o", label=" HERA 128")
+    axes[0].plot(mwa_hexes_antennas, mwa_hexes_redundant[0] + mwa_hexes_redundant[1], marker="x", label="MWA Hexes")
     axes[0].set_ylabel("Gain Variance")
     axes[0].set_yscale('log')
 
-    axes[1].semilogy(sky_data[0, :], sky_data[1, :], label="Sky Based")
-    axes[1].semilogy(sky_data[0, :], sky_data[2, :], "k--", label="Thermal gain variance")
+    axes[1].semilogy(sky_data[0, :], sky_data[1, :], label="Sky Calibration")
+    axes[1].semilogy(sky_data[0, :], sky_data[2, :], "k--", label="Thermal")
 
     axes[0].set_xlabel("Number of Antennas")
     axes[1].set_xlabel("Number of Antennas")
@@ -340,7 +344,7 @@ def plot_cramer_bound(redundant_data, sky_data,  plot_path):
 
     axes[0].legend()
     axes[1].legend()
-    fig.savefig(plot_path + "Gain_Variance_Comparison.pdf")
+    fig.savefig(plot_path + "Gain_Variance_Comparison_Telescopes.pdf")
     return
 
 
