@@ -4,25 +4,23 @@ import numpy
 import copy
 from numba import prange, njit
 from matplotlib import pyplot
-from src.util import hexagonal_array
+from src.util import redundant_baseline_finder
 
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 
 from radiotelescope import BaselineTable
 from skymodel import SkyRealisation
 from skymodel import create_visibilities_analytic
-from cramer_rao_bound import redundant_baseline_finder
 from simulate_beam_covariance_data import compute_baseline_covariance
 from simulate_beam_covariance_data import create_hex_telescope
 from simulate_beam_covariance_data import plot_covariance_data
-from simulate_beam_covariance_data import redundant_table
 import time
 
 
-def position_covariance_simulation(array_size=3, create_signal=True, compute_covariance=False, plot_covariance=False,
+def position_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
                                    show_plot = True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
-    project_path = "Test"
+    project_path = "redundant_based_position_covariance/"
     n_realisations = 10000
     position_precision = 1e-2
     if not os.path.exists(output_path + project_path + "/"):
@@ -52,7 +50,7 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
         print("Creating realisation folder in Project path")
         os.makedirs(path + "/" + "Simulated_Visibilities")
 
-    ideal_baselines = redundant_table(telescope_object.baseline_table)
+    ideal_baselines = redundant_baseline_finder(telescope_object.baseline_table)
 
     for i in range(n_realisations):
         print(f"Realisation {i}")
@@ -66,7 +64,7 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
         perturbed_telescope.antenna_positions.y_coordinates += y_offsets
 
         perturbed_telescope.baseline_table = BaselineTable(position_table = perturbed_telescope.antenna_positions)
-        perturbed_baselines = redundant_table(perturbed_telescope.baseline_table)
+        perturbed_baselines = redundant_baseline_finder(perturbed_telescope.baseline_table)
 
         model_visibilities = create_visibilities_analytic(source_population, ideal_baselines,
                                                           frequency_range = numpy.array([150e6]))
@@ -80,7 +78,6 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
         numpy.save(path + "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities)
         numpy.save(path + "/" + "Simulated_Visibilities/" + f"residual_realisation_{i}", residual_visibilities)
     return
-
 
 
 if __name__ == "__main__":
