@@ -4,22 +4,19 @@ import numpy
 from numba import prange, njit
 from matplotlib import pyplot
 from src.util import hexagonal_array
+from src.util import redundant_baseline_finder
 
-sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
-
-from radiotelescope import RadioTelescope
-from radiotelescope import AntennaPositions
-from radiotelescope import BaselineTable
-from radiotelescope import broken_mwa_beam_loader
-from skymodel import SkyRealisation
-from skymodel import create_visibilities_analytic
-from generaltools import from_lm_to_theta_phi
-from plottools import colorbar
-from cramer_rao_bound import redundant_baseline_finder
-import time
+from src.radiotelescope import RadioTelescope
+from src.radiotelescope import AntennaPositions
+from src.radiotelescope import BaselineTable
+from src.radiotelescope import broken_mwa_beam_loader
+from src.skymodel import SkyRealisation
+from src.skymodel import create_visibilities_analytic
+from src.generaltools import from_lm_to_theta_phi
+from src.plottools import colorbar
 
 
-def beam_covariance_simulation(array_size=3, create_signal=True, compute_covariance=False, plot_covariance=False,
+def beam_covariance_simulation(array_size=3, create_signal=False, compute_covariance=False, plot_covariance=True,
                                show_plot=True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
     project_path = "redundant_based_beam_covariance/"
@@ -67,7 +64,7 @@ def create_visibility_data(telescope_object, n_realisations, path, output_data=F
         os.makedirs(path + "/" + "Simulated_Visibilities")
 
     original_baselines = telescope_object.baseline_table
-    redundant_baselines = redundant_table(original_baselines)
+    redundant_baselines = redundant_baseline_finder(original_baselines)
 
     for i in range(n_realisations):
         print(f"Realisation {i}")
@@ -147,7 +144,7 @@ def numba_perturbed_loop(observations, fluxes, l_source, m_source, u_baselines, 
 
 def compute_baseline_covariance(telescope_object, path, n_realisations, data_type = "residual"):
     original_table = telescope_object.baseline_table
-    redundant_baselines = redundant_table(original_table)
+    redundant_baselines = redundant_baseline_finder(original_table)
 
     if not os.path.exists(path + "/" + "Simulated_Covariance"):
         print("Creating realisation folder in Project path")
@@ -174,7 +171,7 @@ def plot_covariance_data(path, simulation_type = "Unspecified"):
     data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_perturbed_covariance.npy"))
     data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_residual_covariance.npy"))
 
-    figure, axes = pyplot.subplots(3, 2, figsize=(6.5, 10))
+    figure, axes = pyplot.subplots(3, 2, figsize=(8, 12))
     figure.suptitle(f"Baseline {simulation_type} Covariance")
     for i in range(3):
         realplot = axes[i, 0].imshow(numpy.real(data[i]))
@@ -189,24 +186,10 @@ def plot_covariance_data(path, simulation_type = "Unspecified"):
         if i == 2:
             axes[i, 0].set_xlabel("Baseline Index")
             axes[i, 1].set_xlabel("Baseline Index")
-    figure.subplots_adjust(top=0.8)
+    figure.subplots_adjust(top=0.9)
     figure.savefig(path + "Plots/" +f"{simulation_type}_Covariance_Plot.pdf")
     return
 
-
-def redundant_table(original_table):
-    redundant_baselines = redundant_baseline_finder(original_table.antenna_id1, original_table.antenna_id2,
-                                                    original_table.u_coordinates, original_table.v_coordinates,
-                                                    original_table.w_coordinates, verbose=False)
-    redundant_table = BaselineTable()
-    redundant_table.antenna_id1 = redundant_baselines[:, 0]
-    redundant_table.antenna_id2 = redundant_baselines[:, 1]
-    redundant_table.u_coordinates = redundant_baselines[:, 2]
-    redundant_table.v_coordinates = redundant_baselines[:, 3]
-    redundant_table.w_coordinates = redundant_baselines[:, 4]
-    redundant_table.reference_frequency = 150e6
-    redundant_table.number_of_baselines = len(redundant_baselines[:, 0])
-    return redundant_table
 
 
 if __name__ == "__main__":
