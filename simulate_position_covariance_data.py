@@ -20,9 +20,9 @@ import time
 def position_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
                                    show_plot = True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
-    project_path = "redundant_based_position_covariance/"
+    project_path = "redundant_based_position_covariance_10cm/"
     n_realisations = 10000
-    position_precision = 1e-2
+    position_precision = 1e-1
     if not os.path.exists(output_path + project_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path + project_path)
@@ -66,18 +66,33 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
         perturbed_telescope.baseline_table = BaselineTable(position_table = perturbed_telescope.antenna_positions)
         perturbed_baselines = redundant_baseline_finder(perturbed_telescope.baseline_table)
 
+        if perturbed_baselines.number_of_baselines < ideal_baselines.number_of_baselines:
+            map = perturbed_to_original_mapper(ideal_baselines, perturbed_baselines)
+        else:
+            map = numpy.arange(0, perturbed_baselines.number_of_baselines, 1, dtype = int)
         model_visibilities = create_visibilities_analytic(source_population, ideal_baselines,
                                                           frequency_range = numpy.array([150e6]))
 
-        perturbed_visibilities = create_visibilities_analytic(source_population, perturbed_baselines,
+        perturbed_visibilities = numpy.zeros_like(model_visibilities)
+        perturbed_visibilities[map] = create_visibilities_analytic(source_population, perturbed_baselines,
                                                            frequency_range = numpy.array([150e6]))
 
-        residual_visibilities = model_visibilities.flatten() - perturbed_visibilities.flatten()
+        residual_visibilities = numpy.zeros_like(model_visibilities)
+        residual_visibilities[map] = model_visibilities[map] - perturbed_visibilities[map]
 
-        numpy.save(path + "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities)
-        numpy.save(path + "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities)
-        numpy.save(path + "/" + "Simulated_Visibilities/" + f"residual_realisation_{i}", residual_visibilities)
+        numpy.save(path + "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities.flatten())
+        numpy.save(path + "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities.flatten())
+        numpy.save(path + "/" + "Simulated_Visibilities/" + f"residual_realisation_{i}", residual_visibilities.flatten())
     return
+
+def perturbed_to_original_mapper(original_baselines, perturbed_baselines):
+    perturbed_to_original_mapping = numpy.zeros(perturbed_baselines.number_of_baselines)
+    for i in range(perturbed_baselines.number_of_baselines):
+        antenna1_indices = numpy.where(original_baselines.antenna_id1 == perturbed_baselines.antenna_id1[i])
+        antenna2_indices = numpy.where(original_baselines.antenna_id2 == perturbed_baselines.antenna_id2[i])
+        perturbed_to_original_mapping[i] = numpy.intersect1d(antenna1_indices, antenna2_indices)[0]
+
+    return perturbed_to_original_mapping.astype(int)
 
 
 if __name__ == "__main__":
