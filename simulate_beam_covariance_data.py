@@ -147,7 +147,7 @@ def compute_baseline_covariance(telescope_object, path, n_realisations, data_typ
     redundant_baselines = redundant_baseline_finder(original_table)
 
     if not os.path.exists(path + "/" + "Simulated_Covariance"):
-        print("Creating realisation folder in Project path")
+        print("Creating Covariance folder in Project path")
         os.makedirs(path + "/" + "Simulated_Covariance")
 
     residuals = numpy.zeros((redundant_baselines.number_of_baselines, n_realisations), dtype = complex)
