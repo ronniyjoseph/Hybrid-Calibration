@@ -13,10 +13,8 @@ from src.radiotelescope import RadioTelescope
 from src.covariance import sky_covariance
 from src.covariance import beam_covariance
 from src.covariance import position_covariance
-
-sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
-
-from analytic_covariance import moment_returner
+from src.covariance import thermal_variance
+from src.skymodel import sky_moment_returner
 
 
 def cramer_rao_bound_comparison(maximum_factor=8, nu=150e6, verbose=True, compute_data=False, load_data=True,
@@ -102,11 +100,11 @@ def cramer_rao_bound_calculator(maximum_factor=3, position_precision=1e-2, broke
 
 
 def thermal_redundant_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=120):
-    redundant_sky = numpy.sqrt(moment_returner(n_order=2))
+    redundant_sky = numpy.sqrt(sky_moment_returner(n_order=2))
     jacobian_gain_matrix, red_tiles, red_groups = redundant_matrix_populator(redundant_baselines)
 
     jacobian_gain_matrix[:, :len(red_tiles)] *= redundant_sky
-    thermal_noise = SEFD / numpy.sqrt(B * t)
+    thermal_noise = thermal_variance()
     redundant_fisher_information = numpy.dot(jacobian_gain_matrix.T, jacobian_gain_matrix) / thermal_noise
 
     redundant_crlb = 2 * numpy.real(numpy.linalg.pinv(redundant_fisher_information))
@@ -114,7 +112,7 @@ def thermal_redundant_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=1
 
 
 def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2, broken_tile_fraction=1.0):
-    redundant_sky = numpy.sqrt(moment_returner(n_order=2))
+    redundant_sky = numpy.sqrt(sky_moment_returner(n_order=2))
     jacobian_gain_matrix, red_tiles, red_groups = redundant_matrix_populator(redundant_baselines)
 
     jacobian_gain_matrix[:, :len(red_tiles)] *= redundant_sky
@@ -131,11 +129,11 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
 
 
 def thermal_sky_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=120):
-    sky_based_model = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high=10))
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
     antenna_baseline_matrix, red_tiles, red_groups = redundant_matrix_populator(redundant_baselines)
 
     jacobian_gain_matrix = antenna_baseline_matrix[:, :len(red_tiles)] * sky_based_model
-    thermal_noise = SEFD / numpy.sqrt(B * t)
+    thermal_noise = thermal_variance()
     redundant_fisher_information = numpy.dot(jacobian_gain_matrix.T, jacobian_gain_matrix) / thermal_noise
 
     redundant_crlb = 2 * numpy.real(numpy.linalg.pinv(redundant_fisher_information))
@@ -144,11 +142,11 @@ def thermal_sky_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=120):
 
 def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2, broken_tile_fraction=1):
     absolute_fim = 0
-    sky_based_model = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high=10))
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
     antenna_baseline_matrix, red_tiles = sky_model_matrix_populator(redundant_baselines)
 
-    non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
-                                              numpy.array([0, position_precision / c * nu]), nu, mode='baseline')
+    uv_scales = numpy.array([0, position_precision / c * nu])
+    non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
 
     jacobian_gain_matrix = antenna_baseline_matrix[:, :len(red_tiles)] * sky_based_model
 
@@ -195,12 +193,12 @@ def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=1
 
 
 def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e-2):
-    model_sky = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high=10))
-    non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
-                                              numpy.array([0, position_precision / c * nu]), nu, mode='baseline')
+    model_sky = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+    uv_scales = numpy.array([0, position_precision / c * nu])
+    non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
 
-    ideal_unmodeled_covariance = sky_covariance(redundant_baselines.u_coordinates, redundant_baselines.v_coordinates,
-                                                nu, mode='baseline')
+    ideal_unmodeled_covariance = sky_covariance(nu=nu, u=redundant_baselines.u_coordinates,
+                                                v=redundant_baselines.v_coordinates, mode='baseline')
     ideal_unmodeled_covariance = restructure_covariance_matrix(ideal_unmodeled_covariance,
                                                                diagonal=non_redundant_covariance[0, 0],
                                                                off_diagonal=non_redundant_covariance[0, 1])
@@ -217,9 +215,9 @@ def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e
 
 def large_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e-2):
     absolute_fim = 0
-    model_sky = numpy.sqrt(moment_returner(n_order=2, S_low=1, S_high=10))
-    non_redundant_covariance = sky_covariance(numpy.array([0, position_precision / c * nu]),
-                                              numpy.array([0, position_precision / c * nu]), nu, mode='baseline')
+    model_sky = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+    uv_scales = numpy.array([0, position_precision / c * nu])
+    non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
     groups = numpy.unique(redundant_baselines.group_indices)
     for group_index in range(len(groups)):
         number_of_redundant_baselines = len(redundant_baselines.group_indices[redundant_baselines.group_indices ==
@@ -250,25 +248,6 @@ def restructure_covariance_matrix(matrix, diagonal, off_diagonal):
     matrix += numpy.diag(numpy.zeros(matrix.shape[0]) + diagonal)
 
     return matrix
-
-
-# def beam_variance(nu, broken_tile_fraction=1., N=16):
-#     mu_2 = moment_returner(n_order=2)
-#     tile_beam_width = beam_width(nu)
-#     dipole_beam_width = beam_width(nu, diameter=1)
-#
-#     sigma = 0.5 * (tile_beam_width ** 2 * dipole_beam_width ** 2) / (tile_beam_width ** 2 + dipole_beam_width ** 2)
-#
-#     variance = broken_tile_fraction ** 2 * 2 * numpy.pi * mu_2 * sigma ** 2 / (2 * N ** 2)
-#     return variance
-
-
-# def position_variance(nu, position_precision=10e-3):
-#     mu_2 = moment_returner(n_order=2)
-#     tile_beam_width = beam_width(nu)
-#
-#     variance = (2 * numpy.pi) ** 5 * mu_2 * (position_precision * c / nu) ** 2 * tile_beam_width ** 2
-#     return variance
 
 
 def redundant_matrix_populator(uv_positions):
