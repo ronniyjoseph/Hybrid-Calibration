@@ -6,14 +6,13 @@ from scipy import signal
 
 from .radiotelescope import beam_width
 from .radiotelescope import mwa_dipole_locations
-sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 
-from analytic_covariance import moment_returner
+from .skymodel import sky_moment_returner
 
 
-def position_covariance(nu, u, v, delta_u, gamma = 0.8, mode = "frequency", nu_0 = 150e6):
-    mu_1 = moment_returner(n_order = 1)
-    mu_2 = moment_returner(n_order = 2)
+def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6):
+    mu_1 = sky_moment_returner(n_order = 1)
+    mu_2 = sky_moment_returner(n_order = 2)
 
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
@@ -21,29 +20,30 @@ def position_covariance(nu, u, v, delta_u, gamma = 0.8, mode = "frequency", nu_0
         vv2 = v
         uu1 = u
         uu2 = u
+        delta_u = position_precision / c * nu[0]
     else:
         nn1 = nu
         nn2 = nu
         vv1, vv2 = numpy.meshgrid(v, v)
         uu1, uu2 = numpy.meshgrid(u, u)
-
+        delta_u = position_precision / c *nu
     beamwidth1 = beam_width(nn1)
     beamwidth2 = beam_width(nn2)
 
     sigma_nu = beamwidth1**2*beamwidth2**2/(beamwidth1**2 + beamwidth2**2)
     kernel = -2*numpy.pi**2*sigma_nu*((uu1*nn1 - uu2*nn2)**2 + (vv1*nn1 - vv2*nn2)**2 )/nu_0**2
     a = (2*numpy.pi)**5*mu_2*(nn1*nn2/nu_0**2)**(-gamma)*delta_u**2*sigma_nu*numpy.exp(kernel)*(2+2*kernel)
-    #b = mu_1**2*(nn1*nn2)**(-gamma)*delta_u**2
+    # b = mu_1**2*(nn1*nn2)**(-gamma)*delta_u**2
     covariance = a
     return covariance
 
 
-def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency'):
+def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0):
     x_offsets, y_offsets = mwa_dipole_locations(dx)
-    mu_2 = moment_returner(n_order = 2)
+    mu_2 = sky_moment_returner(n_order = 2)
 
     if mode == "frequency":
-        nn1, nn2, xx = numpy.meshgrid(nu, nu, x_offsets )
+        nn1, nn2, xx = numpy.meshgrid(nu, nu, x_offsets)
         nn1, nn2, yy = numpy.meshgrid(nu, nu, y_offsets)
         vv1 = v
         vv2 = v
@@ -73,11 +73,11 @@ def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency'):
 
     covariance = a
 
-    return covariance
+    return broken_tile_fraction*covariance
 
 
 def sky_covariance(u, v, nu, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = 'frequency'):
-    mu_2 = moment_returner(2, S_low=S_low, S_mid=S_mid, S_high=S_high)
+    mu_2 = sky_moment_returner(2, S_low=S_low, S_mid=S_mid, S_high=S_high)
 
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
@@ -96,7 +96,7 @@ def sky_covariance(u, v, nu, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = '
     sigma_nu = width_tile1**2*width_tile2**2/(width_tile1**2 + width_tile2**2)
 
     covariance = 2 * numpy.pi * mu_2* sigma_nu * numpy.exp(-numpy.pi ** 2 * sigma_nu *
-                                                           ((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu[0])
+                                                           ((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2))
 
     return covariance
 
