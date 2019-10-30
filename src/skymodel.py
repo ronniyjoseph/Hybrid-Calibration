@@ -218,10 +218,3 @@ def apparent_fluxes_numba(source_population, frequency_range, antenna_diameter=4
 
     apparent_fluxes = antenna_response * ss.T
     return apparent_fluxes
-
-
-def sky_moment_returner(n_order, k1=4100, gamma1=1.59, k2=4100, gamma2=2.5, S_low=400e-3, S_mid=1, S_high=5.):
-    moment = k1 / (n_order + 1 - gamma1) * (S_mid ** (n_order + 1 - gamma1)) - S_low ** (n_order + 1 - gamma1) + \
-             k2 / (n_order + 1 - gamma2) * (S_high ** (n_order + 1 - gamma2)) - S_mid ** (n_order + 1 - gamma2)
-
-    return moment
