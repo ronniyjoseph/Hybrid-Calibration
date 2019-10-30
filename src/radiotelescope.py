@@ -171,11 +171,7 @@ def ideal_gaussian_beam(source_l, source_m, nu, diameter=4, epsilon=1):
 
 def broken_gaussian_beam(source_l, source_m, nu, faulty_dipole, diameter=4, epsilon=1, dx=1.1):
     wavelength = c / nu
-    x_offsets = numpy.array([-1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5, -1.5,
-                             -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5], dtype=numpy.float32) * dx
-
-    y_offsets = numpy.array([1.5, 1.5, 1.5, 1.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5,
-                             -0.5, -0.5, -1.5, -1.5, -1.5, -1.5], dtype=numpy.float32) * dx
+    x_offsets, y_offsets = mwa_dipole_locations(dx)
 
     dipole_beam = ideal_gaussian_beam(source_l, source_m, nu, diameter / 4., epsilon=epsilon)
     ideal_tile_beam = ideal_gaussian_beam(source_l, source_m, nu, diameter)
@@ -250,11 +246,7 @@ def select_baselines(baseline_coordinates, baseline_selection_indices):
 def mwa_tile_beam(theta, phi, target_theta=0, target_phi=0, frequency=150e6, weights=1, dipole_type='cross',
                   gaussian_width=30 / 180 * numpy.pi):
     dipole_sep = 1.1  # meters
-    x_offsets = numpy.array([-1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5, -1.5,
-                             -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5], dtype=numpy.float32) * dipole_sep
-
-    y_offsets = numpy.array([1.5, 1.5, 1.5, 1.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5,
-                             -0.5, -0.5, -1.5, -1.5, -1.5, -1.5], dtype=numpy.float32) * dipole_sep
+    x_offsets, y_offsets = mwa_dipole_locations(dipole_sep)
     z_offsets = numpy.zeros(x_offsets.shape)
 
     weights += numpy.zeros(x_offsets.shape)
@@ -465,13 +457,13 @@ def xyz_position_creator(shape, verbose=False):
     return xyz_coordinates
 
 
-def redundant_baseline_finder(uv_positions, baseline_direction, verbose=False):
+def redundant_baseline_finder(uv_positions, baseline_direction, verbose=False, minimum_baselines = 3,
+                              wave_fraction = 1. / 6 ):
     """
 	"""
 
     ################################################################
-    minimum_baselines = 3.
-    wave_fraction = 1. / 6
+
     ################################################################
 
     n_baselines = uv_positions.shape[0]
@@ -548,3 +540,12 @@ def redundant_baseline_finder(uv_positions, baseline_direction, verbose=False):
         sys.exit("The given redundant baseline direction is invalid:" + \
                  " please use 'EW', 'ALL'")
     return sorted_baselines
+
+
+def mwa_dipole_locations(dx = 1):
+    x = numpy.array([-1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5, -1.5,
+                             -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5], dtype=numpy.float32) * dx
+
+    y = numpy.array([1.5, 1.5, 1.5, 1.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5,
+                             -0.5, -0.5, -1.5, -1.5, -1.5, -1.5], dtype=numpy.float32) * dx
+    return x, y
