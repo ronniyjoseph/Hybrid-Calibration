@@ -112,18 +112,30 @@ def thermal_redundant_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=1
 
 
 def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=150e6):
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+    jacobian_vector = numpy.zeros(redundant_baselines.number_of_baselines) + sky_based_model
+    uv_scales = numpy.array([0, position_precision / c * nu])
+    non_redundant_block = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
+
     if redundant_baselines.number_of_baselines < 5000:
-        absolute_crlb = small_covariance_matrix(redundant_baselines, nu, position_precision)
+        ideal_covariance = sky_covariance(nu=nu, u=redundant_baselines.u_coordinates,
+                                          v=redundant_baselines.v_coordinates, mode='baseline')
+        absolute_crlb = small_matrix(jacobian_vector, non_redundant_block, ideal_covariance)
+        # absolute_crlb = small_covariance_matrix(redundant_baselines, nu, position_precision)
     elif redundant_baselines.number_of_baselines > 5000:
-        print("Going Block Mode")
-        absolute_crlb = large_covariance_matrix(redundant_baselines, nu, position_precision)
+        # absolute_crlb = large_covariance_matrix(redundant_baselines, nu, position_precision)
+        absolute_crlb = large_matrix(redundant_baselines, jacobian_vector, non_redundant_block)
     return absolute_crlb
 
 
 def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2, broken_tile_fraction=1.0):
+    # Compute the signal
     redundant_sky = numpy.sqrt(sky_moment_returner(n_order=2))
+    # Compute the Jacobian matrix that determines which measurements contribute to the Fisher Information
     jacobian_gain_matrix, red_tiles, red_groups = redundant_matrix_populator(redundant_baselines)
     jacobian_gain_matrix[:, :len(red_tiles)] *= redundant_sky
+
+    # Compute a 2x2 covariance block
     uv_scales = numpy.array([0, position_precision/c*nu])
     non_redundant_block = beam_covariance(nu, u=uv_scales, v=uv_scales, broken_tile_fraction=broken_tile_fraction,
                                                mode='baseline') + \
@@ -138,17 +150,7 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
         ideal_covariance = beam_error + position_error
         redundant_crlb = small_matrix(jacobian_gain_matrix, non_redundant_block, ideal_covariance)
     elif redundant_baselines.number_of_baselines > 5000:
-        uv = numpy.array([0, position_precision / c * nu])
-        beam_error = beam_covariance(nu, uv, uv, broken_tile_fraction=broken_tile_fraction, mode='baseline')
-        position_error = position_covariance(nu, uv, uv, position_precision=position_precision, mode='baseline')
-        non_redundant_covariance = beam_error + position_error
-
-        redundant_crlb = large_covariance_matrix(redundant_baselines, nu, position_precision)
-
-    # redundant_fisher_information = numpy.dot(jacobian_gain_matrix.T, jacobian_gain_matrix) / non_redundancy_variance[
-    #     0, 0]
-    #
-    # redundant_crlb = 2 * numpy.real(numpy.linalg.pinv(redundant_fisher_information))
+        redundant_crlb = large_matrix(redundant_baselines, jacobian_gain_matrix, non_redundant_block)
 
     return redundant_crlb[:len(red_tiles), :len(red_tiles)]
 
@@ -157,10 +159,38 @@ def small_matrix(jacobian, non_redundant_covariance, ideal_covariance):
 
     covariance_matrix = restructure_covariance_matrix(ideal_covariance, diagonal= non_redundant_covariance[0, 0],
                                                       off_diagonal=non_redundant_covariance[0, 1])
-    pyplot.imshow(covariance_matrix)
-    pyplot.show()
     fisher_information = numpy.dot(numpy.dot(jacobian.T, numpy.linalg.pinv(covariance_matrix)), jacobian)
-    if type(fisher_information) != numpy.ndarray:
+    if type(fisher_information) == numpy.ndarray:
+        cramer_rao_lower_bound = 2 * numpy.real(numpy.linalg.pinv(fisher_information))
+    else:
+        cramer_rao_lower_bound = 2 * numpy.real(1 / fisher_information)
+
+    return cramer_rao_lower_bound
+
+
+def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance):
+    groups = numpy.unique(redundant_baselines.group_indices)
+    fisher_information = 0
+    for group_index in range(len(groups)):
+        # Determine which baselines are part of the group
+        group_visibilities_indices = numpy.where(redundant_baselines.group_indices == groups[group_index])[0]
+        # Determine the size of the group
+        number_of_redundant_baselines = len(group_visibilities_indices)
+        group_start_index = numpy.min(group_visibilities_indices)
+        group_end_index = numpy.max(group_visibilities_indices)
+
+        # Create a perfectly redundant block
+        redundant_block = numpy.zeros((number_of_redundant_baselines, number_of_redundant_baselines)) + \
+                          non_redundant_covariance[0, 0]
+
+        redundant_block = restructure_covariance_matrix(redundant_block, diagonal=non_redundant_covariance[0, 0],
+                                                        off_diagonal=non_redundant_covariance[0, 1])
+
+        fisher_information += numpy.dot(numpy.dot(jacobian_matrix[group_start_index:group_end_index + 1, ...].T,
+                                                  numpy.linalg.pinv(redundant_block)),
+                                        jacobian_matrix[group_start_index:group_end_index + 1, ...])
+
+    if type(fisher_information) == numpy.ndarray:
         cramer_rao_lower_bound = 2 * numpy.real(numpy.linalg.pinv(fisher_information))
     else:
         cramer_rao_lower_bound = 2 * numpy.real(1 / fisher_information)
@@ -223,25 +253,25 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
     return sky_crlb
 
 
-def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e-2):
-    model_sky = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
-    uv_scales = numpy.array([0, position_precision / c * nu])
-    non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
-
-    ideal_unmodeled_covariance = sky_covariance(nu=nu, u=redundant_baselines.u_coordinates,
-                                                v=redundant_baselines.v_coordinates, mode='baseline')
-    ideal_unmodeled_covariance = restructure_covariance_matrix(ideal_unmodeled_covariance,
-                                                               diagonal=non_redundant_covariance[0, 0],
-                                                               off_diagonal=non_redundant_covariance[0, 1])
-
-    jacobian_vector = numpy.zeros(redundant_baselines.number_of_baselines) + model_sky
-
-    absolute_fim = numpy.dot(numpy.dot(jacobian_vector.T, numpy.linalg.pinv(ideal_unmodeled_covariance)),
-                             jacobian_vector)
-
-    absolute_crlb = 2 * numpy.real(1 / absolute_fim)
-
-    return absolute_crlb
+# def small_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e-2):
+#     model_sky = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+#     uv_scales = numpy.array([0, position_precision / c * nu])
+#     non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
+#
+#     ideal_unmodeled_covariance = sky_covariance(nu=nu, u=redundant_baselines.u_coordinates,
+#                                                 v=redundant_baselines.v_coordinates, mode='baseline')
+#     ideal_unmodeled_covariance = restructure_covariance_matrix(ideal_unmodeled_covariance,
+#                                                                diagonal=non_redundant_covariance[0, 0],
+#                                                                off_diagonal=non_redundant_covariance[0, 1])
+#
+#     jacobian_vector = numpy.zeros(redundant_baselines.number_of_baselines) + model_sky
+#
+#     absolute_fim = numpy.dot(numpy.dot(jacobian_vector.T, numpy.linalg.pinv(ideal_unmodeled_covariance)),
+#                              jacobian_vector)
+#
+#     absolute_crlb = 2 * numpy.real(1 / absolute_fim)
+#
+#     return absolute_crlb
 
 
 def large_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e-2):
@@ -271,8 +301,6 @@ def large_covariance_matrix(redundant_baselines, nu=150e6, position_precision=1e
 
 
 def restructure_covariance_matrix(matrix, diagonal, off_diagonal):
-    print(diagonal)
-    print(off_diagonal)
     matrix /= diagonal
     matrix -= numpy.diag(numpy.zeros(matrix.shape[0]) + 1)
     matrix *= off_diagonal
@@ -331,6 +359,7 @@ def telescope_bounds(position_path, bound_type="redundant", nu=150e6, position_p
 
         redundant_crlb = relative_calibration_crlb(redundant_table, nu=nu, position_precision=position_precision,
                                                    broken_tile_fraction=broken_tile_fraction)
+        print(numpy.median(numpy.diag(redundant_crlb)))
         absolute_crlb = absolute_calibration_crlb(sky_table, nu=150e6, position_precision=position_precision)
         bound = [numpy.median(numpy.diag(redundant_crlb)), absolute_crlb]
     elif bound_type == "sky":
