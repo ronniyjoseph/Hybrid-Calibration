@@ -38,10 +38,9 @@ def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode =
     return covariance
 
 
-def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0):
+def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0, nu_0 = 150e6):
     x_offsets, y_offsets = mwa_dipole_locations(dx)
     mu_2 = sky_moment_returner(n_order = 2)
-
     if mode == "frequency":
         nn1, nn2, xx = numpy.meshgrid(nu, nu, x_offsets)
         nn1, nn2, yy = numpy.meshgrid(nu, nu, y_offsets)
@@ -49,16 +48,18 @@ def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
         vv2 = v
         uu1 = u
         uu2 = u
+        frequency_scaling = nn1[..., 0]*nn2[..., 0]/nu_0**2
     else:
         nn1 = nu
         nn2 = nu
         vv1, vv2, yy = numpy.meshgrid(v, v, y_offsets)
         uu1, uu2, xx = numpy.meshgrid(u, u, x_offsets)
+        frequency_scaling = nu**2/nu_0**2
 
-    width_1_tile = numpy.sqrt(2) * beam_width(nn1)
-    width_2_tile = numpy.sqrt(2) * beam_width(nn2)
-    width_1_dipole = numpy.sqrt(2) * beam_width(nn1, diameter=1)
-    width_2_dipole = numpy.sqrt(2) * beam_width(nn2, diameter=1)
+    width_1_tile = numpy.sqrt(2) * beam_width(frequency=nn1)
+    width_2_tile = numpy.sqrt(2) * beam_width(frequency=nn2)
+    width_1_dipole = numpy.sqrt(2) * beam_width(frequency=nn1, diameter=1)
+    width_2_dipole = numpy.sqrt(2) * beam_width(frequency=nn2, diameter=1)
 
     sigma_a = (width_1_tile * width_2_tile * width_1_dipole * width_2_dipole) ** 2 / (
             width_2_tile ** 2 * width_1_dipole ** 2 * width_2_dipole ** 2 +
@@ -66,9 +67,10 @@ def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
             width_1_tile ** 2 * width_2_tile ** 2 * width_1_dipole ** 2 +
             width_1_tile ** 2 * width_2_tile ** 2 * width_2_dipole ** 2)
 
-    a = 2*numpy.pi*mu_2*(nn1*nn2)**(-gamma) / len(y_offsets) ** 3 * numpy.sum(
-        sigma_a * numpy.exp(-2 * numpy.pi ** 2 * sigma_a * ((uu1*nn1 - uu2*nn2 + xx*(nn1 - nn2) / c) ** 2 +
-                                                            (vv1*nn1 - vv2*nn2 + yy*(nn1 - nn2) / c) ** 2)), axis=-1)
+    kernel = -2 * numpy.pi ** 2 * sigma_a * ((uu1*nn1 - uu2*nn2 + xx*(nn1 - nn2) / c) ** 2 +
+                                             (vv1*nn1 - vv2*nn2 + yy*(nn1 - nn2) / c) ** 2)/nu_0**2
+    a = 2*numpy.pi*mu_2*frequency_scaling**(-gamma) / len(y_offsets) ** 3 * numpy.sum(sigma_a * numpy.exp(kernel),
+                                                                                        axis=-1)
     b = 1
 
     covariance = a
@@ -76,9 +78,8 @@ def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     return broken_tile_fraction*covariance
 
 
-def sky_covariance(u, v, nu, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = 'frequency'):
+def sky_covariance(nu, u, v, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = 'frequency', nu_0 = 150e6):
     mu_2 = sky_moment_returner(2, S_low=S_low, S_mid=S_mid, S_high=S_high)
-
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
         uu1 = u
@@ -95,11 +96,16 @@ def sky_covariance(u, v, nu, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = '
     width_tile2 = beam_width(nn2)
     sigma_nu = width_tile1**2*width_tile2**2/(width_tile1**2 + width_tile2**2)
 
-    covariance = 2 * numpy.pi * mu_2* sigma_nu * numpy.exp(-numpy.pi ** 2 * sigma_nu *
-                                                           ((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2))
+    kernel = -numpy.pi ** 2 * sigma_nu *((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
+    covariance = 2 * numpy.pi * mu_2* sigma_nu *(nn1*nn2/nu_0**2)**(-gamma)*numpy.exp(kernel)
 
     return covariance
 
+
+def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
+    variance = sefd / numpy.sqrt(bandwidth * t_integrate)
+
+    return variance
 
 def dft_matrix(nu):
     dft = numpy.exp(-2 * numpy.pi * 1j / len(nu)) ** numpy.arange(0, len(nu), 1)
