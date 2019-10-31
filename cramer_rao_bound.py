@@ -157,11 +157,16 @@ def thermal_redundant_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=1
 
     Parameters
     ----------
-    redundant_baselines
-    nu
-    SEFD
-    B
-    t
+    redundant_baselines : object
+                        a radiotelescope object containing the baseline table for the redundant baselines
+    nu                  : float
+                        The frequency at which you want to compute the gains
+    SEFD                : float
+                        System Equivalent Flux Density of the array in Jy
+    B                   : float
+                        Frequency Bandwidth in MHZ
+    t                   : float
+                        Integration time for the calibration observation
 
     Returns
     -------
@@ -183,8 +188,9 @@ def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=1
 
     Parameters
     ----------
-    redundant_baselines
-    position_precision
+    redundant_baselines :   object
+                         a radiotelescope object containing the baseline table for the redundant baselines
+    position_precision  :
     nu
 
     Returns
@@ -202,9 +208,7 @@ def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=1
         ideal_covariance = sky_covariance(nu=nu, u=redundant_baselines.u_coordinates,
                                           v=redundant_baselines.v_coordinates, mode='baseline')
         absolute_crlb = small_matrix(jacobian_vector, non_redundant_block, ideal_covariance)
-        # absolute_crlb = small_covariance_matrix(redundant_baselines, nu, position_precision)
     elif redundant_baselines.number_of_baselines > 5000:
-        # absolute_crlb = large_covariance_matrix(redundant_baselines, nu, position_precision)
         absolute_crlb = large_matrix(redundant_baselines, jacobian_vector, non_redundant_block)
     return absolute_crlb
 
@@ -236,16 +240,16 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
                                position_covariance(nu, u=uv_scales, v=uv_scales, position_precision=position_precision,
                                                    mode='baseline')
 
-    if redundant_baselines.number_of_baselines < 50000:
+    if redundant_baselines.number_of_baselines < 5000:
         print(f"Baselines used {redundant_baselines.number_of_baselines}")
 
-        # beam_error = beam_covariance(nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
-        #                              broken_tile_fraction=broken_tile_fraction, mode='baseline')
+        beam_error = beam_covariance(nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
+                                     broken_tile_fraction=broken_tile_fraction, mode='baseline')
         position_error = position_covariance(nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
                                              position_precision=position_precision, mode='baseline')
-        ideal_covariance = position_error #+ beam_error
+        ideal_covariance = position_error + beam_error
         redundant_crlb = small_matrix(jacobian_gain_matrix, non_redundant_block, ideal_covariance)
-    elif redundant_baselines.number_of_baselines > 50000:
+    elif redundant_baselines.number_of_baselines > 5000:
         redundant_crlb = large_matrix(redundant_baselines, jacobian_gain_matrix, non_redundant_block)
 
     return redundant_crlb[:len(red_tiles), :len(red_tiles)]
@@ -256,11 +260,16 @@ def thermal_sky_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=120):
 
     Parameters
     ----------
-    redundant_baselines
-    nu
-    SEFD
-    B
-    t
+    redundant_baselines : array_like
+                         a radiotelescope object containing the baseline table for the redundant baselines
+    nu                  : float
+                        The frequency at which you want to compute the gain variance in MHz
+    SEFD                : float
+                        The system equivalent flux density of the array in Jy
+    B                   : float
+                        Calibration bandwidth in MHz
+    t                   : float
+                        Observation integration time
 
     Returns
     -------
@@ -282,10 +291,14 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
 
     Parameters
     ----------
-    redundant_baselines
-    nu
-    position_precision
-    broken_tile_fraction
+    redundant_baselines     : object
+                            a radiotelescope object containing the baseline table for the redundant baselines
+    nu                      : float
+                            Frequency of observations in MHz
+    position_precision      : float
+                            Array position precision in metres
+    broken_tile_fraction    : float
+                            Fraction of tiles that have broken dipole
 
     Returns
     -------
@@ -353,6 +366,7 @@ def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance)
         group_visibilities_indices = numpy.where(redundant_baselines.group_indices == groups[group_index])[0]
         # Determine the size of the group
         number_of_redundant_baselines = len(group_visibilities_indices)
+
         if number_of_redundant_baselines == 1:
             # Compute FIM for a single baseline
             fisher_information += numpy.dot(jacobian_matrix[group_visibilities_indices, ...].T,
@@ -371,9 +385,14 @@ def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance)
             fisher_information += numpy.dot(numpy.dot(jacobian_matrix[group_start_index:group_end_index + 1, ...].T,
                                                       numpy.linalg.pinv(redundant_block)),
                                             jacobian_matrix[group_start_index:group_end_index + 1, ...])
-
     if type(fisher_information) == numpy.ndarray:
+        pyplot.imshow(fisher_information, interpolation='none')
+        pyplot.colorbar()
+        pyplot.show()
         cramer_rao_lower_bound = 2 * numpy.real(numpy.linalg.pinv(fisher_information))
+        pyplot.imshow(cramer_rao_lower_bound, interpolation='none')
+        pyplot.colorbar()
+        pyplot.show()
     else:
         cramer_rao_lower_bound = 2 * numpy.real(1 / fisher_information)
 
