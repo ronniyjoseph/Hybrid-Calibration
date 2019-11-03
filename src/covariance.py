@@ -10,9 +10,10 @@ from .radiotelescope import mwa_dipole_locations
 from .skymodel import sky_moment_returner
 
 
-def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6):
-    mu_1 = sky_moment_returner(n_order = 1)
-    mu_2 = sky_moment_returner(n_order = 2)
+def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6,
+                        tile_diameter = 4, s_high = 10):
+    mu_1 = sky_moment_returner(n_order = 1, S_high= s_high)
+    mu_2 = sky_moment_returner(n_order = 2, S_high= s_high)
 
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
@@ -27,8 +28,9 @@ def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode =
         vv1, vv2 = numpy.meshgrid(v, v)
         uu1, uu2 = numpy.meshgrid(u, u)
         delta_u = position_precision / c *nu
-    beamwidth1 = beam_width(nn1)
-    beamwidth2 = beam_width(nn2)
+
+    beamwidth1 = beam_width(nn1, diameter=tile_diameter)
+    beamwidth2 = beam_width(nn2, diameter=tile_diameter)
 
     sigma_nu = beamwidth1**2*beamwidth2**2/(beamwidth1**2 + beamwidth2**2)
     kernel = -2*numpy.pi**2*sigma_nu*((uu1*nn1 - uu2*nn2)**2 + (vv1*nn1 - vv2*nn2)**2 )/nu_0**2
