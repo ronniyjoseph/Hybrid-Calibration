@@ -37,8 +37,13 @@ def plot_power_spectrum(u_bins, eta_bins, nu, data, norm = None, title=None, axe
 
     if x_range is None:
         axes.set_xlim(9e-3, 3e-1)
+    else:
+        axes.set_xlim(x_range[0], x_range[1])
+
     if y_range is None:
         axes.set_ylim(9e-3, 1.2e0)
+    else:
+        axes.set_ylim(y_range[0], y_range[1])
 
     if diff:
         pass
@@ -54,7 +59,8 @@ def plot_power_spectrum(u_bins, eta_bins, nu, data, norm = None, title=None, axe
     if colorbar_show:
         cax = colorbar(psplot, extend=colorbar_limits)
         cax.ax.tick_params(axis='both', which='major', labelsize=tickfontsize)
-        cax.set_label(z_label, fontsize=axes_label_font)
+        if zlabel_show:
+            cax.set_label(z_label, fontsize=axes_label_font)
 
     axes.set_xscale('log')
     axes.set_yscale('log')
