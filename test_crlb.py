@@ -3,17 +3,17 @@ from matplotlib import pyplot
 from matplotlib import colors
 from scipy.constants import c
 
-# from cramer_rao_bound import telescope_bounds
-# from cramer_rao_bound import small_matrix
-# from cramer_rao_bound import large_matrix
-# from cramer_rao_bound import sky_model_matrix_populator
+from cramer_rao_bound import telescope_bounds
+from cramer_rao_bound import small_matrix
+from cramer_rao_bound import large_matrix
+from cramer_rao_bound import sky_model_matrix_populator
 from cramer_rao_bound import absolute_calibration_crlb
 
-# from src.util import redundant_baseline_finder
-# from src.plottools import colorbar
-# from src.radiotelescope import RadioTelescope
-# from src.skymodel import sky_moment_returner
-# from src.covariance import sky_covariance
+from src.util import redundant_baseline_finder
+from src.plottools import colorbar
+from src.radiotelescope import RadioTelescope
+from src.skymodel import sky_moment_returner
+from src.covariance import sky_covariance
 
 
 def test_plot():
@@ -162,6 +162,7 @@ def test_compare_old_new_results():
     axes[1].legend()
     pyplot.show()
     return
+
 
 if __name__ == "__main__":
     # test_plot()
