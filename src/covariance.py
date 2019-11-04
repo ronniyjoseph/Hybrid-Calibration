@@ -98,7 +98,7 @@ def sky_covariance(nu, u, v, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = '
     width_tile2 = beam_width(nn2)
     sigma_nu = width_tile1**2*width_tile2**2/(width_tile1**2 + width_tile2**2)
 
-    kernel = -numpy.pi ** 2 * sigma_nu *((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
+    kernel = -2*numpy.pi ** 2 * sigma_nu *((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
     covariance = 2 * numpy.pi * mu_2* sigma_nu *(nn1*nn2/nu_0**2)**(-gamma)*numpy.exp(kernel)
 
     return covariance
