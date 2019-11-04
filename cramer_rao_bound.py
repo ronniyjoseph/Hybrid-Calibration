@@ -74,6 +74,12 @@ def cramer_rao_bound_calculator(maximum_factor=20, nu=150e6, verbose=True):
 
     full_gain_variance = absolute_gain_variance + relative_gain_variance
 
+    redundant_data = numpy.stack((redundancy_metric, relative_gain_variance, absolute_gain_variance,
+                                  thermal_redundant_variance))
+    sky_data = numpy.stack((redundancy_metric, relative_gain_variance, thermal_sky_variance))
+    numpy.savetxt("TESTING_redundant_crlb.txt", redundant_data)
+    numpy.savetxt("TESTING_skymodel_crlb.txt", sky_data)
+
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
     axes[0].plot(redundancy_metric, relative_gain_variance, label="Relative (Redundant)")
     axes[0].set_ylabel("Gain Variance")
@@ -83,14 +89,14 @@ def cramer_rao_bound_calculator(maximum_factor=20, nu=150e6, verbose=True):
     # axes[1].set_ylabel("Variance of relative variance")
     # axes[1].set_yscale('log')
 
-    axes[0].plot(redundancy_metric, absolute_gain_variance, label="Absolute (Sky based)")
+    axes[0].plot(redundancy_metric, numpy.sqrt(absolute_gain_variance), label="Absolute (Sky based)")
 
-    axes[0].plot(redundancy_metric, full_gain_variance, label="Combined (Sky + Redundant)")
-    axes[0].plot(redundancy_metric, thermal_redundant_variance, label="Thermal gain variance")
+    axes[0].plot(redundancy_metric, numpy.sqrt(full_gain_variance), label="Combined (Sky + Redundant)")
+    axes[0].plot(redundancy_metric, numpy.sqrt(thermal_redundant_variance), label="Thermal gain variance")
 
 
-    axes[1].semilogy(redundancy_metric, sky_gain_variance, label="Sky Based")
-    axes[1].semilogy(redundancy_metric, thermal_sky_variance, label="Thermal gain variance")
+    axes[1].semilogy(redundancy_metric, numpy.sqrt(sky_gain_variance), label="Sky Based")
+    axes[1].semilogy(redundancy_metric, numpy.sqrt(thermal_sky_variance), label="Thermal gain variance")
 
 
     axes[0].set_xlabel("Number of Antennas")
