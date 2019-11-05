@@ -10,8 +10,11 @@ from cramer_rao_bound import sky_model_matrix_populator
 from cramer_rao_bound import absolute_calibration_crlb
 
 from src.util import redundant_baseline_finder
+from src.util import hexagonal_array
 from src.plottools import colorbar
 from src.radiotelescope import RadioTelescope
+from src.radiotelescope import AntennaPositions
+from src.radiotelescope import BaselineTable
 from src.skymodel import sky_moment_returner
 from src.covariance import sky_covariance
 
@@ -164,8 +167,50 @@ def test_compare_old_new_results():
     return
 
 
+def test_group_single_fim(nu = 150e6, position_precision = 1e-2):
+    telescope = RadioTelescope(load=False)
+    antenna_positions = hexagonal_array(4)
+    telescope.antenna_positions = AntennaPositions(load=False)
+    telescope.antenna_positions.antenna_ids = numpy.arange(0, antenna_positions.shape[0], 1)
+    telescope.antenna_positions.x_coordinates = antenna_positions[:, 0]
+    telescope.antenna_positions.y_coordinates = antenna_positions[:, 1]
+    telescope.antenna_positions.z_coordinates = antenna_positions[:, 2]
+    telescope.baseline_table = BaselineTable(position_table=telescope.antenna_positions)
+
+    redundant_baselines = redundant_baseline_finder(telescope.baseline_table, group_minimum=3)
+
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+    antenna_baseline_matrix, red_tiles = sky_model_matrix_populator(redundant_baselines)
+
+    uv_scales = numpy.zeros(2)
+    non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
+
+    print(numpy.linalg.cond(non_redundant_covariance))
+    print(numpy.linalg.pinv(non_redundant_covariance))
+
+    print(1/non_redundant_covariance[0, 0])
+
+
+    non_redundant_covariance += numpy.diag(numpy.zeros(len(uv_scales)) + 9)
+
+    print(numpy.linalg.cond(non_redundant_covariance))
+    print(numpy.linalg.pinv(non_redundant_covariance))
+    print(1 / non_redundant_covariance[0, 0])
+
+    uv_scales = numpy.array([0, 1e-2/c*nu])
+    non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
+    non_redundant_covariance += numpy.diag(numpy.zeros(len(uv_scales)) + 9)
+
+    print(numpy.linalg.cond(non_redundant_covariance))
+    print(numpy.linalg.pinv(non_redundant_covariance))
+    print(1 / non_redundant_covariance[0, 0])
+
+    return
+
+
 if __name__ == "__main__":
     # test_plot()
     # test_fim_approximation()
     # test_absolute_calibration()
-    test_compare_old_new_results()
+    # test_compare_old_new_results()
+    test_group_single_fim()

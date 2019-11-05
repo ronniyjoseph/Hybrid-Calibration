@@ -16,6 +16,8 @@ from matplotlib import colors
 
 from src.plottools import plot_power_spectrum
 
+from src.radiotelescope import beam_width
+from src.skymodel import sky_moment_returner
 
 def calculate_beam_power_spectrum(u, nu, save=False, plot_name="beam_2D_ps.pdf"):
     diameter = 4
@@ -78,6 +80,22 @@ def compare_power_spectrum():
     return
 
 
+def sky_covariance_old(u, v, nu, S_low=0.1, S_mid=1, S_high=1):
+    uu1, uu2 = numpy.meshgrid(u, u)
+    vv1, vv2 = numpy.meshgrid(v, v)
+
+    width_tile = beam_width(nu)
+    sigma_nu = width_tile**2/2
+    print(f"Old Beam width {sigma_nu}")
+
+    mu_2_r = sky_moment_returner(2, S_low=S_low, S_mid=S_mid, S_high=S_high)
+
+    sky_covariance = 2 * numpy.pi * mu_2_r * sigma_nu * numpy.exp(
+        -2*numpy.pi ** 2 * sigma_nu * ((uu1 - uu2) ** 2 + (vv1 - vv2) ** 2))
+
+    return sky_covariance
+
+
 def test_baseline_covariance(nu = 150e6):
     # telescope = RadioTelescope(load = True, path="data/MWA_Hexes_Coordinates.txt")
     telescope = RadioTelescope(load=False)
@@ -89,22 +107,20 @@ def test_baseline_covariance(nu = 150e6):
     telescope.antenna_positions.z_coordinates = antenna_positions[:, 2]
     telescope.baseline_table = BaselineTable(position_table=telescope.antenna_positions)
 
-
-
-    # telescope.antenna_positions.x_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
-    # telescope.antenna_positions.y_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
+    telescope.antenna_positions.x_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
+    telescope.antenna_positions.y_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
     telescope.baseline_table = BaselineTable(position_table=telescope.antenna_positions)
 
     redundant_table = redundant_baseline_finder(telescope.baseline_table, group_minimum=3)
-    skymodel_table = redundant_baseline_finder(telescope.baseline_table, group_minimum=1)
 
-    red_skycov = sky_covariance(nu, u=redundant_table.u(nu), v=redundant_table.v(nu), mode='baseline')
-    full_skycov = sky_covariance(nu, u=skymodel_table.u(nu), v=skymodel_table.v(nu), mode='baseline')
+    new_skycov = sky_covariance(nu, u=redundant_table.u(nu), v=redundant_table.v(nu), mode='baseline')
+    old_skycov = sky_covariance_old(redundant_table.u(nu), redundant_table.v(nu), nu)
 
-    fig, axes = pyplot.subplots(1, 2, figsize = (10, 5))
+    fig, axes = pyplot.subplots(1, 3, figsize = (15, 5))
     norm = colors.LogNorm()
-    axes[0].imshow(red_skycov, norm = norm)
-    axes[1].imshow(full_skycov, norm = norm)
+    axes[0].imshow(new_skycov, norm = norm)
+    axes[1].imshow(old_skycov, norm = norm)
+    axes[2].imshow(old_skycov - new_skycov, norm = norm)
 
     pyplot.show()
     return
