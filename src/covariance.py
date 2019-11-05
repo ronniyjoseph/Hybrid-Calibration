@@ -97,9 +97,10 @@ def sky_covariance(nu, u, v, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = '
     width_tile1 = beam_width(nn1)
     width_tile2 = beam_width(nn2)
     sigma_nu = width_tile1**2*width_tile2**2/(width_tile1**2 + width_tile2**2)
+    print(f"New Beam width {sigma_nu}")
 
-    kernel = -2*numpy.pi ** 2 * sigma_nu *((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
-    covariance = 2 * numpy.pi * mu_2* sigma_nu *(nn1*nn2/nu_0**2)**(-gamma)*numpy.exp(kernel)
+    kernel = -2*numpy.pi ** 2 * sigma_nu * ((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
+    covariance = 2 * numpy.pi * mu_2 * sigma_nu * (nn1*nn2/nu_0**2)**(-gamma)*numpy.exp(kernel)
 
     return covariance
 
@@ -108,6 +109,7 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
     variance = sefd / numpy.sqrt(bandwidth * t_integrate)
 
     return variance
+
 
 def dft_matrix(nu):
     dft = numpy.exp(-2 * numpy.pi * 1j / len(nu)) ** numpy.arange(0, len(nu), 1)
