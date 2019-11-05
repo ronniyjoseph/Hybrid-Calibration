@@ -19,7 +19,7 @@ from src.covariance import thermal_variance
 from src.skymodel import sky_moment_returner
 
 
-def cramer_rao_bound_comparison(maximum_factor=7, nu=150e6, verbose=True, compute_data=True, load_data=True,
+def cramer_rao_bound_comparison(maximum_factor=14, nu=150e6, verbose=True, compute_data=True, load_data=True,
                                 save_output=True, make_plot=True, show_plot=False):
     """
 
@@ -47,9 +47,9 @@ def cramer_rao_bound_comparison(maximum_factor=7, nu=150e6, verbose=True, comput
 
     """
 
-    position_precision = 1e-9
-    broken_tile_fraction = 0.0
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/new_general_hex_no_position_errors/"
+    position_precision = 1e0
+    broken_tile_fraction = 0.3
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/TEST_Thermal_Noise_Fix_Large_Position_Errors/"
     if not os.path.exists(output_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path)
@@ -94,7 +94,7 @@ def cramer_rao_bound_calculator(maximum_factor=3, position_precision=1e-2, broke
 
     """
 
-    size_factor = numpy.arange(7, maximum_factor + 1, 1)
+    size_factor = numpy.arange(2, maximum_factor + 1, 1)
 
     # Initialise empty Arrays for relative calibration results
     redundancy_metric = numpy.zeros(len(size_factor))
@@ -202,11 +202,14 @@ def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, nu=1
     jacobian_vector = numpy.zeros(redundant_baselines.number_of_baselines) + sky_based_model
     uv_scales = numpy.array([0, position_precision / c * nu])
     non_redundant_block = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
+    non_redundant_block += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
 
     if redundant_baselines.number_of_baselines < 5000:
         print(f"Baselines used {redundant_baselines.number_of_baselines}")
         ideal_covariance = sky_covariance(nu=nu, u=redundant_baselines.u_coordinates,
                                           v=redundant_baselines.v_coordinates, mode='baseline')
+        ideal_covariance += numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
+
         absolute_crlb = small_matrix(jacobian_vector, non_redundant_block, ideal_covariance)
     elif redundant_baselines.number_of_baselines > 5000:
         absolute_crlb = large_matrix(redundant_baselines, jacobian_vector, non_redundant_block)
@@ -239,7 +242,7 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
                                                mode='baseline') + \
                                position_covariance(nu, u=uv_scales, v=uv_scales, position_precision=position_precision,
                                                    mode='baseline')
-
+    non_redundant_block += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
     if redundant_baselines.number_of_baselines < 5000:
         print(f"Baselines used {redundant_baselines.number_of_baselines}")
 
@@ -247,7 +250,8 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
                                      broken_tile_fraction=broken_tile_fraction, mode='baseline')
         position_error = position_covariance(nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
                                              position_precision=position_precision, mode='baseline')
-        ideal_covariance = position_error + beam_error
+        thermal_noise = numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
+        ideal_covariance = position_error + beam_error + thermal_noise
         redundant_crlb = small_matrix(jacobian_gain_matrix, non_redundant_block, ideal_covariance)
     elif redundant_baselines.number_of_baselines > 5000:
         redundant_crlb = large_matrix(redundant_baselines, jacobian_gain_matrix, non_redundant_block)
@@ -309,10 +313,12 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
 
     uv_scales = numpy.array([0, position_precision / c * nu])
     non_redundant_covariance = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
+    non_redundant_covariance += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
     jacobian_matrix = antenna_baseline_matrix[:, :len(red_tiles)] * sky_based_model
     if redundant_baselines.number_of_baselines < 5000:
         ideal_covariance = sky_covariance(nu, u = redundant_baselines.u(nu), v = redundant_baselines.v(nu),
                                           mode = 'baseline')
+        ideal_covariance += numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
         sky_crlb = small_matrix(jacobian_matrix, non_redundant_covariance, ideal_covariance)
     elif redundant_baselines.number_of_baselines > 5000:
         sky_crlb = large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance)
@@ -386,13 +392,13 @@ def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance)
                                                       numpy.linalg.pinv(redundant_block)),
                                             jacobian_matrix[group_start_index:group_end_index + 1, ...])
     if type(fisher_information) == numpy.ndarray:
-        pyplot.imshow(fisher_information, interpolation='none')
-        pyplot.colorbar()
-        pyplot.show()
+        # pyplot.imshow(fisher_information, interpolation='none')
+        # pyplot.colorbar()
+        # pyplot.show()
         cramer_rao_lower_bound = 2 * numpy.real(numpy.linalg.pinv(fisher_information))
-        pyplot.imshow(cramer_rao_lower_bound, interpolation='none')
-        pyplot.colorbar()
-        pyplot.show()
+        # pyplot.imshow(cramer_rao_lower_bound, interpolation='none')
+        # pyplot.colorbar()
+        # pyplot.show()
     else:
         cramer_rao_lower_bound = 2 * numpy.real(1 / fisher_information)
 
@@ -518,24 +524,24 @@ def telescope_bounds(position_path, bound_type="redundant", nu=150e6, position_p
 
 
 def plot_cramer_bound(redundant_data, sky_data, plot_path):
-    print("Redundant Calibration Errors")
-    print("HERA 350")
-    hera_350_antennas, hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
-    print("HERA 128")
-    hera_128_antennas, hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
-    print("MWA Hexes")
-    mwa_hexes_antennas, mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
-
-    print("")
-    print("Sky Model")
-    print("MWA Hexes")
-    mwa_hexes_antennas, mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
-    print("MWA Compact")
-    mwa_compact_antennas, mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
-    print("MWA Compact")
-    hera_350_antennas, hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
-    print('SKA')
-    ska_low_antennas, ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
+    # print("Redundant Calibration Errors")
+    # print("HERA 350")
+    # hera_350_antennas, hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
+    # print("HERA 128")
+    # hera_128_antennas, hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
+    # print("MWA Hexes")
+    # mwa_hexes_antennas, mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
+    #
+    # print("")
+    # print("Sky Model")
+    # print("MWA Hexes")
+    # mwa_hexes_antennas, mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
+    # print("MWA Compact")
+    # mwa_compact_antennas, mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
+    # print("MWA Compact")
+    # hera_350_antennas, hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
+    # print('SKA')
+    # ska_low_antennas, ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
 
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
     axes[0].plot(redundant_data[0, :], numpy.sqrt(redundant_data[1, :] + redundant_data[2, :]), label="Total")
