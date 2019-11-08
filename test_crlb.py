@@ -41,7 +41,7 @@ def test_plot():
 def test_fim_approximation(nu = 150e6, position_precision = 1e-2):
     path  = "data/MWA_Compact_Coordinates.txt"
     telescope = RadioTelescope(load=True, path=path)
-    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, s_low=1, s_high=10))
 
     redundant_baselines = redundant_baseline_finder(telescope.baseline_table, group_minimum=1)
     # pyplot.plot(redundant_baselines.antenna_id1, redundant_baselines.group_indices, "ro")
@@ -111,7 +111,7 @@ def test_absolute_calibration():
     position_precision = 1e-2
     nu = 150e6
 
-    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, s_low=1, s_high=10))
     jacobian_vector = numpy.zeros(baseline_table.number_of_baselines) + sky_based_model
     uv_scales = numpy.array([0, position_precision / c * nu])
     non_redundant_block = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
@@ -179,7 +179,7 @@ def test_group_single_fim(nu = 150e6, position_precision = 1e-2):
 
     redundant_baselines = redundant_baseline_finder(telescope.baseline_table, group_minimum=3)
 
-    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, S_low=1, S_high=10))
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, s_low=1, s_high=10))
     antenna_baseline_matrix, red_tiles = sky_model_matrix_populator(redundant_baselines)
 
     uv_scales = numpy.zeros(2)
