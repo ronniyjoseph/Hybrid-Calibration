@@ -12,8 +12,8 @@ from .skymodel import sky_moment_returner
 
 def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6,
                         tile_diameter = 4, s_high = 10):
-    mu_1 = sky_moment_returner(n_order = 1, S_high= s_high)
-    mu_2 = sky_moment_returner(n_order = 2, S_high= s_high)
+    mu_1 = sky_moment_returner(n_order = 1, s_high= s_high)
+    mu_2 = sky_moment_returner(n_order = 2, s_high= s_high)
 
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
@@ -80,8 +80,8 @@ def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     return broken_tile_fraction*covariance
 
 
-def sky_covariance(nu, u, v, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = 'frequency', nu_0 = 150e6):
-    mu_2 = sky_moment_returner(2, S_low=S_low, S_mid=S_mid, S_high=S_high)
+def sky_covariance(nu, u, v, S_low=1e-5, S_mid=1, S_high=1, gamma=0.8, mode = 'frequency', nu_0 = 150e6):
+    mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
         uu1 = u
@@ -97,7 +97,6 @@ def sky_covariance(nu, u, v, S_low=0.1, S_mid=1, S_high=1, gamma = 0.8, mode = '
     width_tile1 = beam_width(nn1)
     width_tile2 = beam_width(nn2)
     sigma_nu = width_tile1**2*width_tile2**2/(width_tile1**2 + width_tile2**2)
-    print(f"New Beam width {sigma_nu}")
 
     kernel = -2*numpy.pi ** 2 * sigma_nu * ((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
     covariance = 2 * numpy.pi * mu_2 * sigma_nu * (nn1*nn2/nu_0**2)**(-gamma)*numpy.exp(kernel)
