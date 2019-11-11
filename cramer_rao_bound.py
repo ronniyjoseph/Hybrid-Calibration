@@ -359,7 +359,6 @@ def small_matrix(jacobian, non_redundant_covariance, ideal_covariance):
     covariance_matrix = restructure_covariance_matrix(ideal_covariance, diagonal= non_redundant_covariance[0, 0],
                                                       off_diagonal=non_redundant_covariance[0, 1])
     fisher_information = compute_fisher_information(covariance_matrix, jacobian)
-    # fisher_information = numpy.dot(numpy.dot(jacobian.T, numpy.linalg.pinv(covariance_matrix)), jacobian)
     cramer_rao_lower_bound = compute_cramer_rao_lower_bound(fisher_information)
 
     return cramer_rao_lower_bound
@@ -403,10 +402,6 @@ def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance)
                                                             off_diagonal=non_redundant_covariance[0, 1])
             jacobian_block = jacobian_matrix[group_start_index:group_end_index + 1, ...]
             # Compute FIM for a group of baselines
-
-            # fisher_information += numpy.dot(numpy.dot(jacobian_matrix[group_start_index:group_end_index + 1, ...].T,
-            #                                           numpy.linalg.pinv(redundant_block)),
-            #                                 jacobian_matrix[group_start_index:group_end_index + 1, ...])
             fisher_information += compute_fisher_information(redundant_block, jacobian_block)
     cramer_rao_lower_bound = compute_cramer_rao_lower_bound(fisher_information)
 
@@ -416,8 +411,7 @@ def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance)
 def compute_fisher_information(covariance_matrix, jacobian, verbose =True):
     if verbose:
         print(f"\tCovariance matrix condition number {numpy.linalg.cond(covariance_matrix)}")
-    y = numpy.linalg.solve(covariance_matrix, jacobian)
-    fisher_information = numpy.dot(jacobian.T, y)
+    fisher_information = numpy.dot(numpy.dot(jacobian.T, numpy.linalg.pinv(covariance_matrix)), jacobian)
 
     return fisher_information
 
