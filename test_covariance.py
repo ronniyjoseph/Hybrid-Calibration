@@ -16,7 +16,7 @@ from src.covariance import compute_ps_variance
 from src.covariance import thermal_variance
 
 from cramer_rao_bound import redundant_matrix_populator
-
+from cramer_rao_bound import restructure_covariance_matrix
 from matplotlib import pyplot
 from matplotlib import colors
 
@@ -199,8 +199,60 @@ def test_jacobian_stability():
     return
 
 
+def compare_sky_and_redundant_covariance(position_precision = 1e-1, sky_model_depth=1.0, nu=150e6):
+    antenna_positions = hexagonal_array(3)
+    antenna_table = AntennaPositions(load=False)
+    antenna_table.antenna_ids = numpy.arange(0, antenna_positions.shape[0], 1)
+    antenna_table.x_coordinates = antenna_positions[:, 0]
+    antenna_table.y_coordinates = antenna_positions[:, 1]
+    antenna_table.z_coordinates = antenna_positions[:, 2]
+    baseline_table = BaselineTable(position_table=antenna_table)
+
+    redundant_baselines = redundant_baseline_finder(baseline_table)
+    uv_scales = numpy.array([0, position_precision / c * nu])
+
+    non_redundant_sky = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, S_high=sky_model_depth, mode='baseline')
+    # non_redundant_sky += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
+
+    non_redundant_pos = position_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
+    # non_redundant_pos += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
+
+    sky_cov = sky_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu), S_high=sky_model_depth,
+                             mode='baseline')
+    thermal_cov = numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
+
+    print("")
+    print("Sky Covariance")
+    print(f"\t Ideal condition number {numpy.linalg.cond(sky_cov)}")
+
+    sky_cov = restructure_covariance_matrix(sky_cov, diagonal=non_redundant_sky[0, 0],
+                                            off_diagonal=non_redundant_sky[0, 1])
+    print(f"\t Perturbed condition number {numpy.linalg.cond(sky_cov)}")
+    sky_cov += thermal_cov
+    print(f"\t Thermalised condition number {numpy.linalg.cond(sky_cov)}")
+
+    print("")
+    print("Redundant Covariance")
+    red_cov = position_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu), mode='baseline')
+    print(f"red covariance condition {numpy.linalg.cond(red_cov)}")
+    red_cov = restructure_covariance_matrix(red_cov, diagonal=non_redundant_pos[0, 0],
+                                            off_diagonal=non_redundant_pos[0, 1])
+    print(f"\t Perturbed condition number {numpy.linalg.cond(red_cov)}")
+    red_cov += thermal_cov
+    print(f"\t Thermalised condition number {numpy.linalg.cond(red_cov)}")
+
+    fig, axes = pyplot.subplots(1, 3, figsize=(10, 5))
+    axes[0].imshow(sky_cov)
+    axes[1].imshow(red_cov)
+    axes[2].imshow(sky_cov - red_cov)
+
+    pyplot.show()
+
+    return
+
 if __name__ == "__main__":
     # compare_power_spectrum()
     # test_baseline_covariance()
-    test_matrix_stability()
+    # test_matrix_stability()
     # test_jacobian_stability()
+    compare_sky_and_redundant_covariance()
