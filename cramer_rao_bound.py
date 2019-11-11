@@ -364,45 +364,45 @@ def small_matrix(jacobian, non_redundant_covariance, ideal_covariance):
     return cramer_rao_lower_bound
 
 
-def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance):
+def large_matrix(baseline_table, jacobian_matrix, perturbed_covariance):
     """
 
     Parameters
     ----------
-    redundant_baselines
+    baseline_table
     jacobian_matrix
-    non_redundant_covariance
+    perturbed_covariance
 
     Returns
     -------
 
     """
 
-    groups = numpy.unique(redundant_baselines.group_indices)
+    groups = numpy.unique(baseline_table.group_indices)
     fisher_information = 0
     for group_index in range(len(groups)):
         # Determine which baselines are part of the group
-        group_visibilities_indices = numpy.where(redundant_baselines.group_indices == groups[group_index])[0]
+        group_visibilities_indices = numpy.where(baseline_table.group_indices == groups[group_index])[0]
         # Determine the size of the group
-        number_of_redundant_baselines = len(group_visibilities_indices)
+        number_of_group_baselines = len(group_visibilities_indices)
 
-        if number_of_redundant_baselines == 1:
+        if number_of_group_baselines == 1:
             # Compute FIM for a single baseline
             fisher_information += numpy.dot(jacobian_matrix[group_visibilities_indices, ...].T,
-                                            jacobian_matrix[group_visibilities_indices, ...]) / non_redundant_covariance[0, 0]
-        elif number_of_redundant_baselines > 1:
+                                            jacobian_matrix[group_visibilities_indices, ...]) / perturbed_covariance[0, 0]
+        elif number_of_group_baselines > 1:
             group_start_index = numpy.min(group_visibilities_indices)
             group_end_index = numpy.max(group_visibilities_indices)
 
             # Create a perfectly redundant block
-            redundant_block = numpy.zeros((number_of_redundant_baselines, number_of_redundant_baselines)) + \
-                              non_redundant_covariance[0, 0]
+            covariance_block = numpy.zeros((number_of_group_baselines, number_of_group_baselines)) + \
+                             perturbed_covariance[0, 0]
             # Perturb the redundancy
-            redundant_block = restructure_covariance_matrix(redundant_block, diagonal=non_redundant_covariance[0, 0],
-                                                            off_diagonal=non_redundant_covariance[0, 1])
+            covariance_block = restructure_covariance_matrix(covariance_block, diagonal=perturbed_covariance[0, 0],
+                                                           off_diagonal=perturbed_covariance[0, 1])
             jacobian_block = jacobian_matrix[group_start_index:group_end_index + 1, ...]
             # Compute FIM for a group of baselines
-            fisher_information += compute_fisher_information(redundant_block, jacobian_block)
+            fisher_information += compute_fisher_information(covariance_block, jacobian_block)
     cramer_rao_lower_bound = compute_cramer_rao_lower_bound(fisher_information)
 
     return cramer_rao_lower_bound
