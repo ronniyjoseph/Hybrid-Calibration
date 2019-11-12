@@ -215,9 +215,8 @@ def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, sky_
                                          mode='baseline')
     non_redundant_block += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
     if redundant_baselines.number_of_baselines < 5000:
-        ideal_covariance = sky_covariance(nu=nu, u=redundant_baselines.u_coordinates,
-                                          v=redundant_baselines.v_coordinates, S_high=sky_model_depth,
-                                          mode='baseline')
+        ideal_covariance = sky_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
+                                          S_high=sky_model_depth, mode='baseline')
         ideal_covariance += numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
 
         absolute_crlb = small_matrix(jacobian_vector, non_redundant_block, ideal_covariance)
@@ -326,7 +325,7 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
     if verbose:
         print("Computing Sky Calibration CRLB")
 
-    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, s_low=1, s_high=10))
+    sky_based_model = numpy.sqrt(sky_moment_returner(n_order=2, s_low=sky_model_depth, s_high=10))
     antenna_baseline_matrix, red_tiles = sky_model_matrix_populator(redundant_baselines)
 
     uv_scales = numpy.array([0, position_precision / c * nu])
@@ -411,6 +410,7 @@ def large_matrix(baseline_table, jacobian_matrix, perturbed_covariance):
 def compute_fisher_information(covariance_matrix, jacobian, verbose =True):
     if verbose:
         print(f"\tCovariance matrix condition number {numpy.linalg.cond(covariance_matrix)}")
+        print(covariance_matrix)
     fisher_information = numpy.dot(numpy.dot(jacobian.T, numpy.linalg.pinv(covariance_matrix)), jacobian)
 
     return fisher_information
