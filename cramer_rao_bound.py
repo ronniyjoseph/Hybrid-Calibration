@@ -19,7 +19,7 @@ from src.covariance import thermal_variance
 from src.skymodel import sky_moment_returner
 
 
-def cramer_rao_bound_comparison(maximum_factor=10, nu=150e6, verbose=True, compute_data=True, load_data=True,
+def cramer_rao_bound_comparison(maximum_factor=12, nu=150e6, verbose=True, compute_data=True, load_data=True,
                                 save_output=True, make_plot=True, show_plot=False):
     """
 
@@ -49,8 +49,8 @@ def cramer_rao_bound_comparison(maximum_factor=10, nu=150e6, verbose=True, compu
 
     position_precision = 1e-2
     broken_tile_fraction = 0.3
-    sky_model_limit = 1e-3
-    output_path = "/data/rjoseph/Hybrid_Calibration/TEST/"
+    sky_model_limit = 1e-2
+    output_path = "/data/rjoseph/Hybrid_Calibration/avoid_inverse/"
     if not os.path.exists(output_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path)
