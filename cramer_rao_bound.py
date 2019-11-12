@@ -19,7 +19,7 @@ from src.covariance import thermal_variance
 from src.skymodel import sky_moment_returner
 
 
-def cramer_rao_bound_comparison(maximum_factor=10, nu=150e6, verbose=True, compute_data=True, load_data=True,
+def cramer_rao_bound_comparison(maximum_factor=12, nu=150e6, verbose=True, compute_data=True, load_data=True,
                                 save_output=True, make_plot=True, show_plot=False):
     """
 
@@ -410,7 +410,6 @@ def large_matrix(baseline_table, jacobian_matrix, perturbed_covariance):
 def compute_fisher_information(covariance_matrix, jacobian, verbose =True):
     if verbose:
         print(f"\tCovariance matrix condition number {numpy.linalg.cond(covariance_matrix)}")
-        print(covariance_matrix)
     fisher_information = numpy.dot(numpy.dot(jacobian.T, numpy.linalg.pinv(covariance_matrix)), jacobian)
 
     return fisher_information
