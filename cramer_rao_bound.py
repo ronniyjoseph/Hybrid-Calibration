@@ -49,8 +49,8 @@ def cramer_rao_bound_comparison(maximum_factor=12, nu=150e6, verbose=True, compu
 
     position_precision = 1e-2
     broken_tile_fraction = 0.3
-    sky_model_limit = 1e-2
-    output_path = "/data/rjoseph/Hybrid_Calibration/with_inverse/"
+    sky_model_limit = 1e-1
+    output_path = "/data/rjoseph/Hybrid_Calibration/with_inverse_100mJy/"
     if not os.path.exists(output_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path)
