@@ -199,7 +199,7 @@ def test_jacobian_stability():
     return
 
 
-def compare_sky_and_redundant_covariance(position_precision = 1e-1, sky_model_depth=1.0, nu=150e6):
+def compare_sky_and_redundant_covariance(position_precision = 1e-1, sky_model_depth=1e-0, nu=150e6):
     antenna_positions = hexagonal_array(3)
     antenna_table = AntennaPositions(load=False)
     antenna_table.antenna_ids = numpy.arange(0, antenna_positions.shape[0], 1)
@@ -212,10 +212,10 @@ def compare_sky_and_redundant_covariance(position_precision = 1e-1, sky_model_de
     uv_scales = numpy.array([0, position_precision / c * nu])
 
     non_redundant_sky = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, S_high=sky_model_depth, mode='baseline')
-    # non_redundant_sky += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
+    non_redundant_sky += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
 
     non_redundant_pos = position_covariance(nu=nu, u=uv_scales, v=uv_scales, mode='baseline')
-    # non_redundant_pos += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
+    non_redundant_pos += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
 
     sky_cov = sky_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu), S_high=sky_model_depth,
                              mode='baseline')
@@ -230,6 +230,8 @@ def compare_sky_and_redundant_covariance(position_precision = 1e-1, sky_model_de
     print(f"\t Perturbed condition number {numpy.linalg.cond(sky_cov)}")
     sky_cov += thermal_cov
     print(f"\t Thermalised condition number {numpy.linalg.cond(sky_cov)}")
+    print(sky_cov)
+
 
     print("")
     print("Redundant Covariance")
