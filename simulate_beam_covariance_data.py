@@ -16,7 +16,7 @@ from src.generaltools import from_lm_to_theta_phi
 from src.plottools import colorbar
 
 
-def beam_covariance_simulation(array_size=3, create_signal=False, compute_covariance=False, plot_covariance=True,
+def beam_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
                                show_plot=True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
     project_path = "redundant_based_beam_covariance/"
@@ -150,10 +150,11 @@ def compute_baseline_covariance(telescope_object, path, n_realisations, data_typ
         print("Creating Covariance folder in Project path")
         os.makedirs(path + "/" + "Simulated_Covariance")
 
-    residuals = numpy.zeros((redundant_baselines.number_of_baselines, n_realisations), dtype = complex)
+    residuals = numpy.zeros((2*redundant_baselines.number_of_baselines, n_realisations), dtype = complex)
     for i in range(n_realisations):
-        residuals[:, i] = numpy.load(path + "Simulated_Visibilities/" + f"{data_type}_realisation_{i}.npy").flatten()
-
+        residuals_realisation = numpy.load(path + "Simulated_Visibilities/" + f"{data_type}_realisation_{i}.npy").flatten()
+        residuals[0::2, i] = numpy.real(residuals_realisation)
+        residuals[1::2, i] = numpy.imag(residuals_realisation)
     baseline_covariance = numpy.cov(residuals)
     numpy.save(path + "Simulated_Covariance/" + f"baseline_{data_type}_covariance", baseline_covariance)
 
