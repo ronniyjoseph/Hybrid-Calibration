@@ -38,8 +38,8 @@ def generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_rang
 
 def generate_covariance_vectors(number_of_baselines, frequency_range):
     covariance_vectors = numpy.zeros((2, number_of_baselines*2))
-    covariance_vectors[0::2] = 1
-    covariance_vectors[1::2] = 1
+    covariance_vectors[0::2, 0::2] = 1
+    covariance_vectors[1::2, 1::2] = 1
     covariance_vectors *= sky_covariance(0, 0, frequency_range)
 
     return covariance_vectors
