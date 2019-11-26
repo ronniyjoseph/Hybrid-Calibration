@@ -16,7 +16,7 @@ from src.covariance import compute_ps_variance
 from src.covariance import thermal_variance
 
 from cramer_rao_bound import redundant_matrix_populator
-
+from cramer_rao_bound import restructure_covariance_matrix
 from matplotlib import pyplot
 from matplotlib import colors
 
@@ -103,10 +103,10 @@ def sky_covariance_old(u, v, nu, S_low=0.1, S_mid=1, S_high=1):
     return sky_covariance
 
 
-def test_baseline_covariance(nu = 150e6):
+def test_baseline_covariance(nu = 150e6, dx=1e-2):
     # telescope = RadioTelescope(load = True, path="data/MWA_Hexes_Coordinates.txt")
     telescope = RadioTelescope(load=False)
-    antenna_positions = hexagonal_array(4)
+    antenna_positions = hexagonal_array(3)
     telescope.antenna_positions = AntennaPositions(load=False)
     telescope.antenna_positions.antenna_ids = numpy.arange(0, antenna_positions.shape[0], 1)
     telescope.antenna_positions.x_coordinates = antenna_positions[:, 0]
@@ -114,17 +114,23 @@ def test_baseline_covariance(nu = 150e6):
     telescope.antenna_positions.z_coordinates = antenna_positions[:, 2]
     telescope.baseline_table = BaselineTable(position_table=telescope.antenna_positions)
 
-    telescope.antenna_positions.x_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
-    telescope.antenna_positions.y_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
-    telescope.baseline_table = BaselineTable(position_table=telescope.antenna_positions)
+    # telescope.antenna_positions.x_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
+    # telescope.antenna_positions.y_coordinates += numpy.random.normal(0, 1e-1, telescope.antenna_positions.number_antennas())
+    # telescope.baseline_table = BaselineTable(position_table=telescope.antenna_positions)
 
     redundant_table = redundant_baseline_finder(telescope.baseline_table, group_minimum=3)
+    uv_scales = numpy.array([0, 150*dx/c*nu])
+    non_redundant_block = position_covariance(nu, u=uv_scales, v=uv_scales, position_precision=dx,
+                                                   mode='baseline')
 
-    new_skycov = sky_covariance(nu, u=redundant_table.u(nu), v=redundant_table.v(nu), mode='baseline')
+
+    new_skycov = position_covariance(nu, u=redundant_table.u(nu), v=redundant_table.v(nu), position_precision=dx,
+                                     mode='baseline')
+    new_skycov = restructure_covariance_matrix(new_skycov, non_redundant_block[0, 0], non_redundant_block[0, 1])
     old_skycov = sky_covariance_old(redundant_table.u(nu), redundant_table.v(nu), nu)
 
     fig, axes = pyplot.subplots(1, 3, figsize = (15, 5))
-    norm = colors.LogNorm()
+    norm = colors.Normalize()
     axes[0].imshow(new_skycov, norm = norm)
     axes[1].imshow(old_skycov, norm = norm)
     axes[2].imshow(old_skycov - new_skycov, norm = norm)
@@ -202,5 +208,5 @@ def test_jacobian_stability():
 if __name__ == "__main__":
     # compare_power_spectrum()
     # test_baseline_covariance()
-    test_matrix_stability()
+    # test_matrix_stability()
     # test_jacobian_stability()
