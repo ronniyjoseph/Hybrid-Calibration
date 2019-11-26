@@ -1,9 +1,9 @@
 import numpy
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from matplotlib import colors
-from generaltools import from_eta_to_k_par
-from generaltools import from_u_to_k_perp
-from generaltools import from_jansky_to_milikelvin
+from .generaltools import from_eta_to_k_par
+from .generaltools import from_u_to_k_perp
+from .generaltools import from_jansky_to_milikelvin
 
 
 def colorbar(mappable, extend = 'neither'):
