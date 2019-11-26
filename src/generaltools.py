@@ -3,7 +3,7 @@ import powerbox
 from scipy import interpolate
 from scipy.constants import c
 from scipy.constants import Boltzmann
-from radiotelescope import beam_width
+from .radiotelescope import beam_width
 import time
 
 
