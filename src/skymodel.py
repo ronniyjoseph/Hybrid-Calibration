@@ -220,7 +220,7 @@ def apparent_fluxes_numba(source_population, frequency_range, antenna_diameter=4
     return apparent_fluxes
 
 
-def sky_moment_returner(n_order, k1=4100, gamma1=1.59, k2=4100, gamma2=2.5, s_low=1e-5, s_mid=1, s_high=5.):
+def sky_moment_returner(n_order, k1=4100, gamma1=1.59, k2=4100, gamma2=2.5, s_low=1e-5, s_mid=1, s_high=10.):
     # Check whether the breakpoints are correct
     if s_high < s_mid:
         s_mid = s_high
