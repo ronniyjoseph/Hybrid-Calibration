@@ -27,14 +27,14 @@ def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode =
         nn2 = nu
         vv1, vv2 = numpy.meshgrid(v, v)
         uu1, uu2 = numpy.meshgrid(u, u)
-        delta_u = position_precision / c *nu
+        delta_u = position_precision / c*nu
 
     beamwidth1 = beam_width(nn1, diameter=tile_diameter)
     beamwidth2 = beam_width(nn2, diameter=tile_diameter)
 
     sigma_nu = beamwidth1**2*beamwidth2**2/(beamwidth1**2 + beamwidth2**2)
     kernel = -2*numpy.pi**2*sigma_nu*((uu1*nn1 - uu2*nn2)**2 + (vv1*nn1 - vv2*nn2)**2 )/nu_0**2
-    a = (2*numpy.pi)**5*mu_2*(nn1*nn2/nu_0**2)**(-gamma)*delta_u**2*sigma_nu*numpy.exp(kernel)*(2+2*kernel)
+    a = 16*numpy.pi**3*mu_2*(nn1*nn2/nu_0**2)**(1-gamma)*delta_u**2*sigma_nu*numpy.exp(kernel)*(1+2*kernel)
     # b = mu_1**2*(nn1*nn2)**(-gamma)*delta_u**2
     covariance = a
     return covariance
