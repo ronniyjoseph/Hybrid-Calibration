@@ -80,6 +80,12 @@ def redundant_baseline_finder(baseline_table_object, group_minimum=3, threshold=
     v = baseline_table_object.v_coordinates
     w = baseline_table_object.w_coordinates
 
+    isconj = (v < 0)& (u < 0)
+    u = u.copy()
+    v = v.copy()
+    u[isconj] = -1 * u[isconj]
+    v[isconj] = -1 * v[isconj]
+
     n_baselines = u.shape[0]
     # create empty table
     redundant_baselines = numpy.zeros((n_baselines, 6))
@@ -89,6 +95,7 @@ def redundant_baseline_finder(baseline_table_object, group_minimum=3, threshold=
     k = 0
     # Go through all antennas, take each antenna out and all antennas
     # which are part of the not redundant enough group
+
     while u.shape[0] > 0:
         # calculate uv separation at the calibration wavelength
         separation = numpy.sqrt((u - u[0]) ** 2. + (v - v[0]) ** 2.)
