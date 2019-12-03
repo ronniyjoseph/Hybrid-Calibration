@@ -15,10 +15,13 @@ def split_visibility(data):
     return data_split[0, :]
 
 
-def find_sky_model_sources(sky_realisation, frequency_range, antenna_size = 4):
+def find_sky_model_sources(sky_realisation, frequency_range, antenna_size = 4, sky_model_depth = None):
     apparent_flux = apparent_fluxes_numba(sky_realisation, frequency_range, antenna_diameter = antenna_size )
-    rms = numpy.sqrt(numpy.mean(sky_realisation.fluxes**2))
-    model_source_indices = numpy.where(apparent_flux[:, 0] > 3*rms)
+    if sky_model_depth is None:
+        rms = 3*numpy.sqrt(numpy.mean(sky_realisation.fluxes ** 2))
+        sky_model_depth = rms
+
+    model_source_indices = numpy.where(apparent_flux[:, 0] > sky_model_depth)
     sky_model = sky_realisation.select_sources(model_source_indices)
 
     return sky_model
@@ -36,11 +39,11 @@ def generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_rang
     return sky_vectors
 
 
-def generate_covariance_vectors(number_of_baselines, frequency_range):
+def generate_covariance_vectors(number_of_baselines, frequency_range, sky_model_limit):
     covariance_vectors = numpy.zeros((2, number_of_baselines*2))
     covariance_vectors[0::2, 0::2] = 1
     covariance_vectors[1::2, 1::2] = 1
-    covariance_vectors *= sky_covariance(0, 0, frequency_range)
+    covariance_vectors *= sky_covariance(0, 0, frequency_range, S_high = sky_model_limit)
 
     return covariance_vectors
 
@@ -76,6 +79,7 @@ def redundant_baseline_finder(baseline_table_object, group_minimum=3, threshold=
     """
     antenna_id1 = baseline_table_object.antenna_id1
     antenna_id2 = baseline_table_object.antenna_id2
+
     u = baseline_table_object.u_coordinates
     v = baseline_table_object.v_coordinates
     w = baseline_table_object.w_coordinates
@@ -133,7 +137,7 @@ def redundant_baseline_finder(baseline_table_object, group_minimum=3, threshold=
         print("There are", group_counter, "redundant groups in this array")
 
     # find the filled entries
-    non_zero_indices = numpy.where(redundant_baselines[:, 0] != 0)
+    non_zero_indices = numpy.where(redundant_baselines[:, 2] != 0)
     # remove the empty entries
     redundant_baselines = redundant_baselines[non_zero_indices[0], :]
 
