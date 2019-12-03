@@ -149,9 +149,16 @@ class BaselineTable:
 
     def sub_table(self, baseline_selection_indices):
         subtable = copy.copy(self)
-        subtable.selection = baseline_selection_indices
         subtable.number_of_baselines = len(baseline_selection_indices)
 
+        subtable.antenna_id1 = self.antenna_id1[baseline_selection_indices]
+        subtable.antenna_id2 = self.antenna_id2[baseline_selection_indices]
+        subtable.u_coordinates = self.u_coordinates[baseline_selection_indices]
+        subtable.v_coordinates = self.v_coordinates[baseline_selection_indices]
+        subtable.w_coordinates = self.w_coordinates[baseline_selection_indices]
+
+        if self.group_indices is not None:
+            subtable.group_indices = self.group_indices[baseline_selection_indices]
         return subtable
 
 
@@ -440,7 +447,6 @@ def xyz_position_creator(shape, verbose=False):
             second_hex[:, 1] += shape[4]
             second_hex[:, 2] += shape[5]
             xyz_coordinates = numpy.vstack((first_hex, second_hex))
-
     elif shape[0] == 'linear':
         if verbose:
             print("")
