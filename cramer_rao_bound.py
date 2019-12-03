@@ -3,9 +3,6 @@ import numpy
 import os
 from scipy.constants import c
 from scipy import sparse
-import matplotlib
-matplotlib.use("Agg")
-from matplotlib import pyplot
 from src.util import hexagonal_array
 from src.util import redundant_baseline_finder
 from src.radiotelescope import beam_width
@@ -455,6 +452,7 @@ def compute_fisher_information(covariance_matrix, jacobian, covariance_jacobian 
                                                                                             jacobi_covariance))
     return fisher_information
 
+
 def compute_cramer_rao_lower_bound(fisher_information, verbose =True):
     if type(fisher_information) == numpy.ndarray:
         cramer_rao_lower_bound = 2*numpy.real(numpy.linalg.pinv(fisher_information))
@@ -642,5 +640,8 @@ def plot_cramer_bound(redundant_data, sky_data, plot_path):
 
 
 if __name__ == "__main__":
+    import matplotlib
+    matplotlib.use("Agg")
+    from matplotlib import pyplot
     # test_plot()
     cramer_rao_bound_comparison()
