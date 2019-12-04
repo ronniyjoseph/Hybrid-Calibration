@@ -4,6 +4,7 @@ import os
 import multiprocessing
 from scipy.constants import c
 from scipy import sparse
+from functools import partial
 import matplotlib
 matplotlib.use("Agg")
 from matplotlib import pyplot
@@ -30,6 +31,7 @@ from cramer_rao_bound import restructure_covariance_matrix
 def main(nu =150e6, position_precision = 1e-2, broken_tile_fraction=0.3, sky_model_depth = 1e-2, verbose = False):
     var_dense = []
     var_sparse = []
+    parallisation_flag = True
 
     for i in range(2, 16):
         print("")
@@ -42,27 +44,25 @@ def main(nu =150e6, position_precision = 1e-2, broken_tile_fraction=0.3, sky_mod
         antenna_table.z_coordinates = antenna_positions[:, 2]
         baseline_table = BaselineTable(position_table=antenna_table)
 
-        print(antenna_table.antenna_ids)
         if verbose:
             print("")
             print("Finding redundant baselines")
 
 
 
-        skymodel_baselines = redundant_baseline_finder(baseline_table, group_minimum=1)
+        skymodel_baselines = redundant_baseline_finder(baseline_table, group_minimum=3)
         sky_signal = numpy.sqrt(sky_moment_returner(n_order=2))
         modelled_signal = numpy.sqrt(sky_moment_returner(n_order=2, s_low=sky_model_depth))
 
         thermal_noise = thermal_variance()
 
-        uv_scales = numpy.array([0, position_precision/c*nu*150])
-        sky_block_covariance = sky_covariance(nu, u=numpy.array([0,0]), v=numpy.array([0,0]), mode='baseline')
+        uv_scales = numpy.array([0, position_precision/c*nu])
+        sky_block_covariance = sky_covariance(nu, u=uv_scales, v=uv_scales, mode='baseline', S_high=sky_model_depth)
         beam_block_covariance = beam_covariance(nu, u=uv_scales, v=uv_scales, broken_tile_fraction=broken_tile_fraction,
                                                    mode='baseline')
         position_block_covariance = position_covariance(nu, u=uv_scales, v=uv_scales, position_precision=position_precision,
                                                        mode='baseline')
-        non_redundant_block =  sky_block_covariance +  numpy.diag(numpy.zeros(len(uv_scales)) + beam_block_covariance[0,0]) + \
-                               numpy.diag(numpy.zeros(len(uv_scales)) + position_block_covariance[0, 0])
+        non_redundant_block =  sky_block_covariance #+ beam_block_covariance
 
         # sky_noise = sky_covariance(nu, u=skymodel_baselines.u(nu), v=skymodel_baselines.v(nu), mode='baseline')
         # beam_error = beam_covariance(nu, u=skymodel_baselines.u(nu), v=skymodel_baselines.v(nu),
@@ -80,8 +80,8 @@ def main(nu =150e6, position_precision = 1e-2, broken_tile_fraction=0.3, sky_mod
 
 
         # FIM_dense = compute_fim_dense(antenna_table, skymodel_baselines, covariance_matrix, sky_model_covariance, noise_covariance, data)
-        FIM_sparse = compute_fim_sparse(antenna_table, skymodel_baselines, non_redundant_block, modelled_signal, thermal_noise,
-                                sky_signal)
+        FIM_sparse = compute_fim_sparse(antenna_table, skymodel_baselines, non_redundant_block, sky_signal, modelled_signal, thermal_noise,
+                                parallelised=parallisation_flag)
 
         # norm = colors.Normalize()
         # fig,axes = pyplot.subplots(1, 3, figsize = (15, 5))
@@ -95,7 +95,7 @@ def main(nu =150e6, position_precision = 1e-2, broken_tile_fraction=0.3, sky_mod
         # var_dense.append(numpy.median(numpy.diag(numpy.linalg.pinv(FIM_dense))))
         var_sparse.append(numpy.median(numpy.diag(numpy.linalg.pinv(FIM_sparse))))
         print(var_sparse)
-        numpy.savetxt("test_corrcal_variance.txt",numpy.array(var_sparse))
+        numpy.savetxt("test_corrcal_variance_without_redundant_only.txt",numpy.array(var_sparse))
     pyplot.semilogy(var_dense)
     pyplot.savefig("test.pdf")
     return
@@ -143,34 +143,131 @@ def compute_fim_dense(antenna_table, baseline_table, R, S, N, D, verbose = False
     return FIM
 
 
-def compute_fim_sparse(antenna_table, baseline_table, covariance_block, sky_model, thermal_noise, data):
+def compute_fim_sparse(antenna_table, baseline_table, covariance_block, total_signal, sky_model, thermal_noise, parallelised = False):
 
     n_antennas = len(antenna_table.antenna_ids)
     group_indices = numpy.unique(baseline_table.group_indices)
     n_groups = len(group_indices)
-    print(f"Number of groups {n_groups}")
     FIM = numpy.zeros((n_antennas, n_antennas))
 
+    if parallelised:
+        k = numpy.arange(0, n_groups)
+        pool = multiprocessing.Pool(processes = 4)
+        FIM_blocks = pool.map(partial(single_group_fim, covariance_block[0,0], covariance_block[0, 1], total_signal, sky_model,
+                                      thermal_noise, antenna_table, baseline_table, group_indices), k)
+
+        FIM = numpy.sum(numpy.array(FIM_blocks), axis=0)
+    else:
+        for k in range(n_groups):
+            FIM +=single_group_fim(covariance_block[0,0], covariance_block[0, 1], total_signal, sky_model, thermal_noise, antenna_table, baseline_table, group_indices, k)
+            # verbose = False
+            # baseline_indices = numpy.where(baseline_table.group_indices == group_indices[k])[0]
+            #
+            # block_size = len(baseline_indices)
+            #
+            # R = numpy.zeros((block_size, block_size))
+            # R += covariance_block[0, 1]
+            # R -= numpy.diag(numpy.zeros(block_size) + covariance_block[0, 1])
+            # R += numpy.diag(numpy.zeros(block_size) + covariance_block[0, 0])
+            #
+            # S = numpy.zeros((block_size, block_size)) + sky_model
+            #
+            # N = numpy.diag(numpy.zeros(block_size) + thermal_noise)
+            # D = numpy.zeros(block_size) + data
+            #
+            # group_table = baseline_table.sub_table(baseline_indices)
+            #
+            # FIM += compute_fim_dense(antenna_table, group_table, R, S, N, D, verbose)
+    return FIM
+
+
+def single_group_fim(diagonal, offdiagonal, total_signal, sky_model, thermal_noise, antenna_table, baseline_table, group_indices, index):
+    baseline_indices = numpy.where(baseline_table.group_indices == group_indices[index])[0]
+
+    block_size = len(baseline_indices)
+
+    R = numpy.zeros((block_size, block_size))
+    R += offdiagonal
+    R -= numpy.diag(numpy.zeros(block_size) + offdiagonal)
+    R += numpy.diag(numpy.zeros(block_size) + diagonal)
+
+    S = numpy.zeros((block_size, block_size)) + sky_model
+
+    N = numpy.diag(numpy.zeros(block_size) + thermal_noise)
+    D = numpy.zeros(block_size) + total_signal
+
+    group_table = baseline_table.sub_table(baseline_indices)
+
+    FIM = compute_fim_dense(antenna_table, group_table, R, S, N, D)
+
+    return FIM
+
+
+def compute_fim_sparse_vectorised(antenna_table, baseline_table, covariance_block, total_signal, sky_model, thermal_noise, parallelised = False):
+    n_antennas = len(antenna_table.antenna_ids)
+    group_indices = numpy.unique(baseline_table.group_indices)
+    n_groups = len(group_indices)
+    FIM = numpy.zeros((n_antennas, n_antennas))
     for k in range(n_groups):
-        verbose = False
-        baseline_indices = numpy.where(baseline_table.group_indices == group_indices[k])[0]
+        FIM += single_group_fim_vectorised(covariance_block[0, 0], covariance_block[0, 1], total_signal, sky_model, thermal_noise,
+                                antenna_table, baseline_table, group_indices, k)
 
-        block_size = len(baseline_indices)
+    return
 
-        R = numpy.zeros((block_size, block_size))
-        R += covariance_block[0, 1]
-        R -= numpy.diag(numpy.zeros(block_size) + covariance_block[0, 1])
-        R += numpy.diag(numpy.zeros(block_size) + covariance_block[0, 0])
 
-        S = numpy.zeros((block_size, block_size)) + sky_model
+def single_group_fim_vectorised(diagonal, offdiagonal, total_signal, sky_model, thermal_noise, antenna_table, baseline_table, group_indices, index):
+    baseline_indices = numpy.where(baseline_table.group_indices == group_indices[index])[0]
 
-        N = numpy.diag(numpy.zeros(block_size) + thermal_noise)
-        D = numpy.zeros(block_size) + data
+    block_size = len(baseline_indices)
 
-        group_table = baseline_table.sub_table(baseline_indices)
+    R = numpy.zeros((block_size, block_size))
+    R += offdiagonal
+    R -= numpy.diag(numpy.zeros(block_size) + offdiagonal)
+    R += numpy.diag(numpy.zeros(block_size) + diagonal)
 
-        FIM += compute_fim_dense(antenna_table, group_table, R, S, N, D, verbose)
+    S = numpy.zeros((block_size, block_size)) + sky_model
 
+    N = numpy.diag(numpy.zeros(block_size) + thermal_noise)
+    D = numpy.zeros(block_size) + total_signal
+
+    group_table = baseline_table.sub_table(baseline_indices)
+
+    FIM = compute_fim_dense_vectorised(antenna_table, group_table, R, S, N, D)
+
+    return FIM
+
+
+def compute_fim_dense_vectorised(antenna_table, baseline_table, R, S, N, D, verbose = False):
+    C = R + S
+    H = numpy.diag(numpy.zeros(baseline_table.number_of_baselines) + 1)
+    HCH = H.T @ C @ H
+    N_HCH =  N + HCH
+    inv_N_HCH = numpy.linalg.pinv(N_HCH)
+
+    n_antennas = len(antenna_table.antenna_ids)
+    FIM = numpy.zeros((n_antennas, n_antennas))
+
+
+    for i in range(n_antennas):
+        di_H = compute_gain_derivative(baseline_table, antenna_index=antenna_table.antenna_ids[i])
+        di_HCH = di_H.T @ C @ H
+
+
+
+        for j in range(i, n_antennas):
+
+            dj_H = compute_gain_derivative(baseline_table, antenna_index=antenna_table.antenna_ids[j])
+            dj_HCH = dj_H.T @ C @ H
+
+            di_dj_H = compute_gain_double_derivative(baseline_table, antenna_table.antenna_ids[i],
+                                                     antenna_table.antenna_ids[j])
+
+            FIM_element = 4*D.T @ inv_N_HCH @ dj_HCH @ inv_N_HCH @ di_HCH @ inv_N_HCH @ D +\
+                       D.T @ inv_N_HCH @ (di_dj_H.T @ C @ H + di_dj_H.T @ C @ dj_H) @ inv_N_HCH @ D  + \
+                           4*D.T @ inv_N_HCH @ di_HCH @ inv_N_HCH @ dj_HCH @ inv_N_HCH @ D
+
+            FIM[i, j] =FIM_element
+            FIM[j, i] = FIM_element
     return FIM
 
 
