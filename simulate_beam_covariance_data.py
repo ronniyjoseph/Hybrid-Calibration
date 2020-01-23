@@ -1,8 +1,8 @@
 import os
 import sys
+import argparse
 import numpy
 from numba import prange, njit
-from matplotlib import pyplot
 from src.util import hexagonal_array
 from src.util import redundant_baseline_finder
 
@@ -157,7 +157,10 @@ def compute_baseline_covariance(telescope_object, path, n_realisations, data_typ
         residuals[1::2, i] = numpy.imag(residuals_realisation)
     baseline_covariance = numpy.cov(residuals)
     numpy.save(path + "Simulated_Covariance/" + f"baseline_{data_type}_covariance", baseline_covariance)
-
+    fig, axes = pyplot.subplots(1, 2, figsize=(10,5))
+    axes[0].hist(residuals[0:100:2, :])
+    axes[1].hist(residuals[1:100:2, :])
+    pyplot.show()
     return
 
 
@@ -192,6 +195,14 @@ def plot_covariance_data(path, simulation_type = "Unspecified"):
     return
 
 
-
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ssh", action= "store_true", dest="ssh_key", default = False)
+    params = parser.parse_args()
+
+    import matplotlib
+    if params.ssh_key:
+        matplotlib.use("Agg")
+
+    from matplotlib import pyplot
     beam_covariance_simulation()
