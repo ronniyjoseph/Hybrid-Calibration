@@ -2,24 +2,27 @@ import sys
 import numpy
 import argparse
 import matplotlib
+matplotlib.use("Agg")
 from matplotlib import pyplot
 from scipy.constants import c
 
 # Import local codes
-sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
-sys.path.append("../corrcal2")
+# sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
+sys.path.append("../../CorrCal_UKZN_Development/corrcal")
+from corrcal import grid_data
 
-from radiotelescope import AntennaPositions
-from radiotelescope import BaselineTable
-from skymodel import SkyRealisation
-from corrcal2 import grid_data
+from src.covariance import thermal_variance
+from src.radiotelescope import AntennaPositions
+from src.radiotelescope import BaselineTable
+from src.skymodel import SkyRealisation
 
-from util import split_visibility
-from util import find_sky_model_sources
-from util import generate_sky_model_vectors
-from util import generate_covariance_vectors
 
-from calibrate import hybrid_calibration
+from src.util import split_visibility
+from src.util import find_sky_model_sources
+from src.util import generate_sky_model_vectors
+from src.util import generate_covariance_vectors
+
+from src.calibrate import hybrid_calibration
 
 def main(mode = "run"):
     # 12 500 sources within 2.5 primary beam width
@@ -31,19 +34,24 @@ def main(mode = "run"):
 
     output_path = "/data/rjoseph/Hybrid_Calibration/correlation_cal_simulations/redundant_calibration/"
     frequency_range = numpy.array([150]) * 1e6
-    n_antenna_grid_points = 8
-    separation_scale = 20
-    antenna_scale = 13  # wavelengths
+    tile_size = 4  # wavelengths
     noise_fraction_brightest_source = 0.1
-    n_realisations = 2000
+    position_precision = 0
+    broken_tile_fraction = 0.3
+    sky_model_limit = 1e-1
+    n_realisations = 1
 
     if mode == "run":
-        calibration_simulation(frequency_range, n_antenna_grid_points, separation_scale, antenna_scale,
-                               noise_fraction_brightest_source, n_realisations, output_path)
+        print(f"Running Simulation")
+        calibration_simulation(frequency_range = frequency_range, antenna_diameter = tile_size,
+                               noise_fraction_brightest_source = noise_fraction_brightest_source,
+                               position_error=position_precision, broken_tile_fraction=broken_tile_fraction,
+                               sky_model_limit=sky_model_limit, n_realisations = n_realisations, output_path=output_path)
     elif mode == 'process':
         simulation_processing(output_path)
 
     return
+
 
 def simulation_processing(output_path):
     gain_realisations = numpy.load(output_path + "gain_solutions.npy")
@@ -58,36 +66,37 @@ def simulation_processing(output_path):
     pyplot.show()
     return
 
-def calibration_simulation(frequency_range, n_antenna_grid_points, separation_scale, antenna_scale,
-                           noise_fraction_brightest_source, n_realisations, output_path):
-    wavelength = c / frequency_range[0]
-    array_size = (n_antenna_grid_points - 1) * wavelength * separation_scale
-    antenna_size = antenna_scale * wavelength
 
-    antenna_table = AntennaPositions(load=False, shape=['square', array_size / 2, n_antenna_grid_points, 0, 0])
+def calibration_simulation(frequency_range, antenna_diameter, noise_fraction_brightest_source, position_error,
+                           broken_tile_fraction, sky_model_limit, n_realisations, output_path):
+
+    antenna_table = AntennaPositions(load=False, shape=['doublehex', 14, 0, 0, 100, 250])
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
+    pyplot.scatter(antenna_table.x_coordinates,antenna_table.y_coordinates)
 
     solutions = numpy.zeros((len(antenna_table.antenna_ids), n_realisations), dtype=complex)
     print(f"Completed \r", )
+
     for i in range(n_realisations):
         if (i / n_realisations * 100 % 10) == 0.0:
             print(f"{int(i / n_realisations * 100)}% ... \r", )
-        try:
-            solutions[:, i] = calibration_realisation(frequency_range, antenna_table, noise_fraction_brightest_source,
-                                                      antenna_size, seed=i)
-        except:
-            solutions[:, i] = numpy.nan
+        solutions[:, i] = calibration_realisation(frequency_range=frequency_range, antenna_table=antenna_table,
+                                                      noise_fraction_brightest_source=noise_fraction_brightest_source,
+                                                      antenna_size=antenna_diameter, position_precision=position_error,
+                                                      broken_tile_fraction=broken_tile_fraction,
+                                                      sky_model_limit=sky_model_limit, seed=i)
 
     numpy.save(output_path + "gain_solutions", solutions)
     print("")
 
     return
 
-def calibration_realisation(frequency_range, antenna_table,  noise_fraction_brightest_source, antenna_size, seed=0):
+
+def calibration_realisation(frequency_range, antenna_table,  noise_fraction_brightest_source, antenna_size,
+                            position_precision = 0, broken_tile_fraction = 0.0, sky_model_limit = 1e-1, seed=0):
     numpy.random.seed(seed)
 
-    position_errors = numpy.random.normal(0.04*c/frequency_range[0], size = 2*antenna_table.antenna_ids.shape[0])
-
+    position_errors = numpy.random.normal(loc =0, scale =position_precision, size = 2*antenna_table.antenna_ids.shape[0])
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
     antenna_table.x_coordinates += position_errors[:len(antenna_table.antenna_ids)]
     antenna_table.y_coordinates += position_errors[len(antenna_table.antenna_ids):]
@@ -96,10 +105,11 @@ def calibration_realisation(frequency_range, antenna_table,  noise_fraction_brig
 
     # We go down to 40 mili-Jansky to get about 10 calibration sources
     sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=seed)
-    sky_model_sources = find_sky_model_sources(sky_realisation, frequency_range, antenna_size=antenna_size)
+    sky_model_sources = find_sky_model_sources(sky_realisation, frequency_range, antenna_size=antenna_size,
+                                               sky_model_depth=sky_model_limit)
 
     # Create thermal noise
-    noise_level = noise_fraction_brightest_source * sky_model_sources.fluxes.max()
+    noise_level = thermal_variance()
     # now compute the visibilities
     data_complex = sky_realisation.create_visibility_model(baseline_table, frequency_range, antenna_size=antenna_size)
     thermal_noise = numpy.random.normal(scale=noise_level, size=data_complex.shape)
@@ -113,13 +123,14 @@ def calibration_realisation(frequency_range, antenna_table,  noise_fraction_brig
                                  baseline_table.antenna_id2.astype(int))
 
     data_vector = split_visibility(data_sorted)
-    model_vectors = generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size)[0, :]
-
-    covariance_vectors = generate_covariance_vectors(baseline_table.number_of_baselines, frequency_range)
+    model_vectors = generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size)
+    covariance_vectors = generate_covariance_vectors(baseline_table.number_of_baselines, frequency_range, sky_model_limit)
     noise_split = numpy.zeros(data_vector.shape[0]) + noise_level
 
+    print("Calibrating the Sky")
     gain_solutions = hybrid_calibration(data_vector, noise_split, covariance_vectors, model_vectors, edges_sorted,
                                         ant1_sorted, ant2_sorted, gain_guess=None, scale_factor=1000)
+    print(gain_solutions)
     return gain_solutions
 
 
