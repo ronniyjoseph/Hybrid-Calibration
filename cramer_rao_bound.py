@@ -1,11 +1,11 @@
 import sys
 import numpy
 import os
+import argparse
+
 from scipy.constants import c
-from scipy import sparse
 from src.util import hexagonal_array
 from src.util import redundant_baseline_finder
-from src.radiotelescope import beam_width
 from src.radiotelescope import AntennaPositions
 from src.radiotelescope import BaselineTable
 from src.radiotelescope import RadioTelescope
@@ -16,8 +16,8 @@ from src.covariance import thermal_variance
 from src.skymodel import sky_moment_returner
 
 
-def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compute_data=False, load_data=True,
-                                save_output=True, make_plot=True, show_plot=True):
+def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compute_data=False, compute_telescopes=True,
+                                load_data=True, save_output=True, make_plot=False, show_plot=True):
     """
 
     Parameters
@@ -30,6 +30,8 @@ def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compu
                         True of False if you want stderr output
     compute_data    :   bool
                         Flag to compute data for this settings
+    compute_telescopes
+
     load_data       :   bool
                         Flag to load previously computed data
     save_output     :   bool
@@ -47,18 +49,52 @@ def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compu
     position_precision = 1e-2
     broken_tile_fraction = 0.3
     sky_model_limit = 1e-2
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/New_FIM_TEST_no_error_17/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/CRLB_MWA_Settings/"
     if not os.path.exists(output_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path)
 
     if compute_data:
-        redundant_data, sky_data = cramer_rao_bound_calculator(maximum_factor, position_precision, broken_tile_fraction,
+        size_factor = numpy.arange(2, maximum_factor, 1)
+        redundant_data, sky_data = cramer_rao_bound_calculator(size_factor, position_precision, broken_tile_fraction,
                                                                sky_model_depth = sky_model_limit, nu=nu,
                                                                verbose=verbose)
         if save_output:
+            input_parameters = numpy.array([[position_precision], [broken_tile_fraction], [sky_model_limit]])
+            header_string = "Position_Precision[m]  Broken_Tile[Fraction]   Sky_Model_Depth[Jy]"
+            numpy.savetxt(output_path + "input_parameters.txt", input_parameters.T, header = header_string)
             numpy.savetxt(output_path + "redundant_crlb.txt", redundant_data)
             numpy.savetxt(output_path + "skymodel_crlb.txt", sky_data)
+    if compute_telescopes:
+        print("Redundant Calibration Errors")
+        print("HERA 350")
+        hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
+        print("HERA 128")
+        hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
+        print("MWA Hexes")
+        mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
+
+
+        print("")
+        print("Sky Model")
+        print("MWA Hexes")
+        mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
+        print("MWA Compact")
+        mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
+        print("MWA Compact")
+        hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
+        print('SKA')
+        ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
+
+        numpy.savetxt(output_path + "hera_350_redundant.txt", hera_350_redundant)
+        numpy.savetxt(output_path + "hera_128_redundant.txt",  hera_128_redundant)
+        numpy.savetxt(output_path + "mwa_hexes_redundant.txt", mwa_hexes_redundant)
+
+        numpy.savetxt(output_path + "hera_350_sky.txt", hera_350_sky)
+        numpy.savetxt(output_path + "ska_low_sky.txt", ska_low_sky)
+        numpy.savetxt(output_path + "mwa_hexes_skymodel.txt",  mwa_hexes_sky)
+        numpy.savetxt(output_path + "mwa_compact_skymodel.txt", mwa_compact_sky)
+
     if load_data:
         redundant_data = numpy.loadtxt(output_path + "redundant_crlb.txt")
         sky_data = numpy.loadtxt(output_path + "skymodel_crlb.txt")
@@ -69,7 +105,7 @@ def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compu
     return
 
 
-def cramer_rao_bound_calculator(maximum_factor=3, position_precision=1e-2, broken_tile_fraction=0.3,
+def cramer_rao_bound_calculator(size_factor, position_precision=1e-2, broken_tile_fraction=0.3,
                                 sky_model_depth = 1.0, nu=150e6, verbose=True):
     """
 
@@ -92,8 +128,6 @@ def cramer_rao_bound_calculator(maximum_factor=3, position_precision=1e-2, broke
     -------
 
     """
-
-    size_factor = numpy.arange(2, maximum_factor + 1, 1)
 
     # Initialise empty Arrays for relative calibration results
     redundancy_metric = numpy.zeros(len(size_factor))
@@ -417,7 +451,6 @@ def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance,
                                                     antennas_indices, redundant_groups, redundant_baselines,
                                                     block_index=group_index)
 
-
     cramer_rao_lower_bound = compute_cramer_rao_lower_bound(fisher_information)
 
     return cramer_rao_lower_bound
@@ -575,46 +608,34 @@ def telescope_bounds(position_path, bound_type="redundant", nu=150e6, position_p
         print("Absolute Bounds")
         absolute_crlb = absolute_calibration_crlb(sky_table, nu=150e6, position_precision=position_precision,
                                                   sky_model_depth=sky_model_depth)
-        bound = [numpy.median(numpy.diag(redundant_crlb)), absolute_crlb]
+        crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(redundant_crlb)), absolute_crlb])
     elif bound_type == "sky":
         redundant_table = redundant_baseline_finder(telescope.baseline_table, group_minimum=1)
-        bound = numpy.median(numpy.diag(sky_calibration_crlb(redundant_table, sky_model_depth=sky_model_depth )))
+        sky_crlb = sky_calibration_crlb(redundant_table, sky_model_depth=sky_model_depth )
+        crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(sky_crlb))])
 
-    return number_antennas, bound
+    return crlb_data
 
 
-def plot_cramer_bound(redundant_data, sky_data, plot_path):
-    print("Redundant Calibration Errors")
-    print("HERA 350")
-    hera_350_antennas, hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
-    print("HERA 128")
-    hera_128_antennas, hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
-    print("MWA Hexes")
-    mwa_hexes_antennas, mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
-    #
-    print("")
-    print("Sky Model")
-    print("MWA Hexes")
-    mwa_hexes_antennas, mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
-    print("MWA Compact")
-    mwa_compact_antennas, mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
-    print("MWA Compact")
-    hera_350_antennas, hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
-    print('SKA')
-    ska_low_antennas, ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
+def plot_cramer_bound(redundant_data, sky_data, plot_path,):
 
     fig, axes = pyplot.subplots(1, 2, figsize=(10, 5))
-    axes[0].plot(redundant_data[0, :], numpy.sqrt(redundant_data[1, :] + redundant_data[2, :]), label="Redundant Based")
+    axes[0].plot(redundant_data[0, :], numpy.sqrt(redundant_data[1, :] + redundant_data[2, :]), 'w', label="Redundant Based")
+    axes[0].semilogy(redundant_data[0, :len(sky_data)], numpy.sqrt(sky_data), "C4", label="CorrCal")
 
     axes[0].plot(redundant_data[0, :], numpy.sqrt(redundant_data[1, :]), label="Relative")
     axes[0].plot(redundant_data[0, :], numpy.sqrt(redundant_data[2, :]), label="Absolute")
     axes[0].plot(redundant_data[0, :], numpy.sqrt(redundant_data[3, :]), "k--", label="Thermal")
 
-    axes[0].plot(mwa_hexes_antennas, numpy.sqrt(mwa_hexes_redundant[0] + mwa_hexes_redundant[1]), marker="x",
+    mwa_hexes_redundant = numpy.loadtxt(plot_path + "mwa_hexes_redundant.txt")
+    hera_128_redundant = numpy.loadtxt(plot_path + "hera_128_redundant.txt")
+    hera_350_redundant = numpy.loadtxt(plot_path + "hera_350_redundant.txt")
+
+    axes[0].plot(mwa_hexes_redundant[0], numpy.sqrt(mwa_hexes_redundant[1] + mwa_hexes_redundant[2]), marker="x",
                  linestyle = 'None', label="MWA Hexes")
-    axes[0].plot(hera_128_antennas, numpy.sqrt(hera_128_redundant[0] + hera_128_redundant[1]), marker="o", linestyle = 'None',
-                 label="HERA 128")
-    axes[0].plot(hera_350_antennas, numpy.sqrt(hera_350_redundant[0] + hera_350_redundant[1]), marker='H',
+    axes[0].plot(hera_128_redundant[0], numpy.sqrt(hera_128_redundant[1] + hera_128_redundant[2]), marker="o",
+                 linestyle = 'None', label="HERA 128")
+    axes[0].plot(hera_350_redundant[0], numpy.sqrt(hera_350_redundant[1] + hera_350_redundant[2]), marker='H',
                  linestyle='None', label="HERA 350")
     axes[0].set_ylabel("Gain Error")
     axes[0].set_yscale('log')
@@ -622,10 +643,15 @@ def plot_cramer_bound(redundant_data, sky_data, plot_path):
     axes[1].semilogy(sky_data[0, :], numpy.sqrt(sky_data[1, :]),color = "C1", label="Sky Based")
     axes[1].semilogy(sky_data[0, :], numpy.sqrt(sky_data[2, :]), "k--", label="Thermal")
 
-    axes[1].plot(mwa_hexes_antennas, numpy.sqrt(mwa_hexes_sky), marker='x', linestyle = 'None',  label="MWA Hexes")
-    axes[1].plot(hera_350_antennas, numpy.sqrt(hera_350_sky), marker='H', linestyle = 'None', label="HERA 350")
-    axes[1].plot(mwa_compact_antennas, numpy.sqrt(mwa_compact_sky), marker='+',linestyle = 'None',  label="MWA Compact")
-    axes[1].plot(ska_low_antennas, numpy.sqrt(ska_low_sky), marker='*', linestyle = 'None', label="SKA_LOW1")
+    hera_350_sky = numpy.loadtxt(plot_path + "hera_350_sky.txt")
+    ska_low_sky = numpy.loadtxt(plot_path + "ska_low_sky.txt")
+    mwa_hexes_sky = numpy.loadtxt(plot_path + "mwa_hexes_skymodel.txt")
+    mwa_compact_sky = numpy.loadtxt(plot_path + "mwa_compact_skymodel.txt")
+
+    axes[1].plot(mwa_hexes_sky[0], numpy.sqrt(mwa_hexes_sky[1]), marker='x', linestyle = 'None',  label="MWA Hexes")
+    axes[1].plot(hera_350_sky[0], numpy.sqrt(hera_350_sky[1]), marker='H', linestyle = 'None', label="HERA 350")
+    axes[1].plot(mwa_compact_sky[0], numpy.sqrt(mwa_compact_sky[1]), marker='+',linestyle = 'None',  label="MWA Compact")
+    axes[1].plot(ska_low_sky[0], numpy.sqrt(ska_low_sky[1]), marker='*', linestyle = 'None', label="SKA_LOW1")
 
     axes[0].set_xlabel("Number of Antennas")
     axes[1].set_xlabel("Number of Antennas")
@@ -635,13 +661,19 @@ def plot_cramer_bound(redundant_data, sky_data, plot_path):
 
     axes[0].legend()
     axes[1].legend()
-    fig.savefig(plot_path + "Full_New_FIM.pdf", transparent = True)
+    fig.savefig(plot_path + "Corrcal_FIM.pdf", transparent = True)
     return
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--ssh", action="store_true", dest="ssh_key", default=False)
+    params = parser.parse_args()
+
     import matplotlib
-    matplotlib.use("Agg")
+
+    if params.ssh_key:
+        matplotlib.use("Agg")
     from matplotlib import pyplot
-    # test_plot()
+
     cramer_rao_bound_comparison()
