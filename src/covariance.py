@@ -1,6 +1,4 @@
 import numpy
-import sys
-from matplotlib import pyplot
 from scipy.constants import c
 from scipy import signal
 
