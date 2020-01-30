@@ -42,6 +42,7 @@ class AntennaPositions:
             self.x_coordinates = None
             self.y_coordinates = None
             self.z_coordinates = None
+        self.antenna_gains = None
         return
 
     def number_antennas(self):
