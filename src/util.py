@@ -7,10 +7,10 @@ sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 
 from analytic_covariance import sky_covariance
 
+
 def split_visibility(data):
     data_real = numpy.real(data)
     data_imag = numpy.imag(data)
-
     data_split = numpy.hstack((data_real, data_imag)).reshape((1, 2 * len(data_real)), order="C")
     return data_split[0, :]
 
