@@ -11,11 +11,12 @@ class RadioTelescope:
             print("Creating the radio telescope")
         self.antenna_positions = None
         if shape is not None:
-            self.antenna_positions = AntennaPositions(False, None, shape, verbose)
+            self.antenna_positions = AntennaPositions(load =False, path = None, shape=shape, verbose=verbose)
         if load:
-            self.antenna_positions = AntennaPositions(True, path, None, verbose)
+            self.antenna_positions = AntennaPositions(load=True, path=path, shape=None, verbose=verbose)
         if shape is not None or load:
-            self.baseline_table = BaselineTable(self.antenna_positions, frequency_channels, verbose)
+            self.baseline_table = BaselineTable(position_table=self.antenna_positions,
+                                                frequency_channels=frequency_channels, verbose=verbose)
         else:
             self.baseline_table = None
         return
@@ -42,7 +43,7 @@ class AntennaPositions:
             self.x_coordinates = None
             self.y_coordinates = None
             self.z_coordinates = None
-        self.antenna_gains = None
+        self.antenna_gains = numpy.zeros(len(self.antenna_ids), dtype=complex) + 1 + 0j
         return
 
     def number_antennas(self):
@@ -60,6 +61,7 @@ class BaselineTable:
         self.number_of_baselines = None
         self.group_indices = None
         self.selection = None
+        self.baseline_gains = None
         # update all attributes
         if position_table is not None:
             self.baseline_converter(position_table, frequency_channels, verbose)
@@ -69,7 +71,6 @@ class BaselineTable:
         if verbose:
             print("")
             print("Converting xyz to uvw-coordinates")
-
         if frequency_channels is None:
             self.reference_frequency = 150e6
         elif type(frequency_channels) == numpy.ndarray:
@@ -82,7 +83,7 @@ class BaselineTable:
             raise ValueError(
                 f"frequency_channels should be 'numpy.ndarray', or scalar not type({self.reference_frequency})")
 
-        # calculate the wavelengths of the adjecent channels
+        # calculate the wavelengths of the adjacent channels
         reference_wavelength = c / self.reference_frequency
         # Count the number of antenna
         number_of_antenna = position_table.number_antennas()
@@ -97,6 +98,7 @@ class BaselineTable:
         u_coordinates = antenna_1.copy()
         v_coordinates = antenna_1.copy()
         w_coordinates = antenna_1.copy()
+        baseline_gains = numpy.zeros((self.number_of_baselines, 1), dtype=complex)
 
         if verbose:
             print("")
@@ -119,6 +121,10 @@ class BaselineTable:
                     j]) / reference_wavelength
                 w_coordinates[k] = (position_table.z_coordinates[i] - position_table.z_coordinates[
                     j]) / reference_wavelength
+                if position_table.antenna_gains is None:
+                    baseline_gains[k] = 1 + 0j
+                else:
+                    baseline_gains[k] = position_table.antenna_gains[i]*numpy.conj(position_table.antenna_gains[j])
 
                 k += 1
 
@@ -128,6 +134,8 @@ class BaselineTable:
         self.u_coordinates = u_coordinates
         self.v_coordinates = v_coordinates
         self.w_coordinates = w_coordinates
+
+        self.baseline_gains = baseline_gains
         return
 
     def u(self, frequency=None):
@@ -158,6 +166,7 @@ class BaselineTable:
         subtable.v_coordinates = self.v_coordinates[baseline_selection_indices]
         subtable.w_coordinates = self.w_coordinates[baseline_selection_indices]
 
+        subtable.baseline_gains= self.baseline_gains[baseline_selection_indices]
         if self.group_indices is not None:
             subtable.group_indices = self.group_indices[baseline_selection_indices]
         return subtable
