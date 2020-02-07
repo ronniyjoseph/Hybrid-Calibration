@@ -126,6 +126,16 @@ class SkyRealisation:
             pass
         return visibilities
 
+    def save_table(self, path=None, filename=None):
+        if path is None:
+            path = "./"
+        if filename is None:
+            filename = "sky_catalogue"
+
+        data = numpy.stack((self.fluxes, self.l_coordinates, self.m_coordinates, self.spectral_indices))
+        numpy.save(path + filename, data)
+        return
+
 
 def stochastic_sky(seed=0, k1=4100, gamma1=1.59, k2=4100, \
                    gamma2=2.5, S_low=400e-3, S_mid=1, S_high=5.):
