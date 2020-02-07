@@ -21,6 +21,7 @@ from src.util import generate_sky_model_vectors
 from src.util import generate_covariance_vectors
 
 from src.calibrate import hybrid_calibration
+from src.plottools import colorbar
 
 
 def main(mode="run"):
@@ -31,14 +32,14 @@ def main(mode="run"):
     # position noise of 0.04 wavelengths
     # per visibility noise 0.1*brightes source
 
-    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Test_Gain_Unity/"
-    frequency_range = numpy.array([150]) * 1e6
+    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky/"
+    frequency_range = numpy.array([150])*1e6
     tile_size = 4  # wavelengths
     noise_fraction_brightest_source = 0.1
     position_precision = 0
     broken_tile_fraction = 0
-    sky_model_limit = 1e-1
-    n_realisations = 100
+    sky_model_limit = 6
+    n_realisations = 1000
 
     if mode == "run":
         print(f"Running Simulation")
@@ -70,15 +71,14 @@ def calibration_simulation(frequency_range, antenna_diameter, noise_fraction_bri
                            broken_tile_fraction, sky_model_limit, n_realisations, output_path, save_inputs=True):
     if save_inputs:
         setup_simulation_directory(output_path)
-        input_parameters = numpy.array([[position_error], [broken_tile_fraction], [sky_model_limit]])
+        input_parameters = numpy.array([[position_error], [broken_tile_fraction], [sky_model_limit], [n_realisations]])
         header_string = "Position_Precision[m]  Broken_Tile[Fraction]   Sky_Model_Depth[Jy]"
         numpy.savetxt(output_path + "input_parameters.txt", input_parameters.T, header=header_string)
 
     antenna_table = AntennaPositions(load=False, shape=['doublehex', 14, 0, 0, 100, 250])
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
-    solutions = numpy.zeros((len(antenna_table.antenna_ids), n_realisations), dtype=complex)
+    antenna_table.antenna_gains[2] = 2
     print(f"Progress: \r", )
-
     for i in range(n_realisations):
         if (i / n_realisations * 100 % 10) == 0.0:
             print(f"{int(i / n_realisations * 100)}% ... \r", )
@@ -103,36 +103,43 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
     antenna_table.x_coordinates += position_errors[:len(antenna_table.antenna_ids)]
     antenna_table.y_coordinates += position_errors[len(antenna_table.antenna_ids):]
-
+    print(antenna_table.antenna_gains[2])
     baseline_table = BaselineTable(position_table=antenna_table, frequency_channels=frequency_range)
 
     # We go down to 40 mili-Jansky to get about 10 calibration sources
-    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=seed)
+    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=1)
     sky_model_sources = find_sky_model_sources(sky_realisation, frequency_range, antenna_size=antenna_size,
-                                               sky_model_depth=8)
-
+                                               sky_model_depth=sky_model_limit)
+    print(f"Including {len(sky_model_sources.l_coordinates)} sources in the sky model")
     if save_inputs:
         if not os.path.exists(output_path + f"realisation_{seed}"):
             print(f"Creating folder for realisation {seed}")
             os.makedirs(output_path + f"realisation_{seed}")
-        numpy.save(output_path + f"realisation_{seed}/" + "sky_realisation", sky_realisation)
+        sky_realisation.save_table(output_path + f"realisation_{seed}/", "sky_realisation")
+        # numpy.save(output_path + f"realisation_{seed}/" + "sky_realisation", sky_realisation)
         numpy.save(output_path + f"realisation_{seed}/" + "position_errors", position_errors)
+        numpy.save(output_path + f"realisation_{seed}/" + "antenna_gains", antenna_table.antenna_gains)
 
     # Create thermal noise
     noise_level = thermal_variance()
     # now compute the visibilities
-    data_complex = sky_realisation.create_visibility_model(baseline_table, frequency_range, antenna_size=antenna_size)
-    thermal_noise = numpy.random.normal(scale=noise_level, size=data_complex.shape)
+    ideal_visibilities = sky_realisation.create_visibility_model(baseline_table, frequency_range, antenna_size=antenna_size)
+    noise_realisation = numpy.random.normal(scale=noise_level, size=(ideal_visibilities.shape[0], 2))
+    noise_visibilities = numpy.zeros_like(ideal_visibilities)
+    noise_visibilities[:, 0] = noise_realisation[:, 0] + 1j*noise_realisation[:, 1]
+
+    measured_visibilities = baseline_table.baseline_gains*ideal_visibilities + noise_visibilities
 
     if save_inputs:
-        numpy.save(output_path + f"realisation_{seed}/" + "model_data", data_complex)
-        numpy.save(output_path + f"realisation_{seed}/" + "thermal_noise", thermal_noise)
+        numpy.save(output_path + f"realisation_{seed}/" + "ideal_visibilities", ideal_visibilities)
+        numpy.save(output_path + f"realisation_{seed}/" + "noise_visibilities", noise_visibilities)
+        numpy.save(output_path + f"realisation_{seed}/" + "measured_visibilities", measured_visibilities)
 
     data_sorted, u_sorted, v_sorted, noise_sorted, ant1_sorted, ant2_sorted, edges_sorted, sorting_indices, \
-    conjugation_flag = grid_data(data_complex + thermal_noise,
+    conjugation_flag = grid_data(measured_visibilities,
                                  baseline_table.u_coordinates,
                                  baseline_table.v_coordinates,
-                                 thermal_noise,
+                                 noise_visibilities,
                                  baseline_table.antenna_id1.astype(int),
                                  baseline_table.antenna_id2.astype(int))
 
@@ -146,6 +153,7 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
     gain_solutions = hybrid_calibration(data_vector, noise_split, covariance_vectors, model_vectors, edges_sorted,
                                         ant1_sorted, ant2_sorted, gain_guess=None, scale_factor=1000)
     numpy.save(output_path + f"realisation_{seed}/" + "gain_solutions", gain_solutions)
+
     return gain_solutions
 
 
