@@ -16,8 +16,8 @@ from src.covariance import thermal_variance
 from src.skymodel import sky_moment_returner
 
 
-def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compute_data=True, compute_telescopes=True,
-                                load_data=True, save_output=True, make_plot=False, show_plot=True):
+def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compute_data=False, compute_telescopes=True,
+                                load_data=False, save_output=False, make_plot=False, show_plot=True):
     """
 
     Parameters
@@ -49,7 +49,7 @@ def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compu
     position_precision = 1e-2
     broken_tile_fraction = 0.3
     sky_model_limit = 1e-1
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/CRLB_MWA_LOBES_settings/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/SKA_Testings/"
     if not os.path.exists(output_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path)
@@ -65,43 +65,40 @@ def cramer_rao_bound_comparison(maximum_factor=17, nu=150e6, verbose=True, compu
             numpy.savetxt(output_path + "input_parameters.txt", input_parameters.T, header = header_string)
             numpy.savetxt(output_path + "redundant_crlb.txt", redundant_data)
             numpy.savetxt(output_path + "skymodel_crlb.txt", sky_data)
+
     if compute_telescopes:
-        print("Redundant Calibration Errors")
-        print("HERA 350")
-        hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
-        print("HERA 128")
-        hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
-        print("MWA Hexes")
-        mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
-
-
-        print("")
-        print("Sky Model")
-        print("MWA Hexes")
-        mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
-        print("MWA Compact")
-        mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
-        print("MWA Compact")
-        hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
+        # print("Redundant Calibration Errors")
+        # print("HERA 350")
+        # hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
+        # print("HERA 128")
+        # hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
+        # print("MWA Hexes")
+        # mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
+        #
+        #
+        # print("")
+        # print("Sky Model")
+        # print("MWA Hexes")
+        # mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
+        # print("MWA Compact")
+        # mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
+        # print("MWA Compact")
+        # hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
         print('SKA')
         ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
+
+    if load_data:
+        redundant_data = numpy.loadtxt(output_path + "redundant_crlb.txt")
+        sky_data = numpy.loadtxt(output_path + "skymodel_crlb.txt")
 
         numpy.savetxt(output_path + "hera_350_redundant.txt", hera_350_redundant)
         numpy.savetxt(output_path + "hera_128_redundant.txt",  hera_128_redundant)
         numpy.savetxt(output_path + "mwa_hexes_redundant.txt", mwa_hexes_redundant)
 
-        numpy.savetxt(output_path + "hera_350_sky.txt", hera_350_sky)
-        numpy.savetxt(output_path + "ska_low_sky.txt", ska_low_sky)
+        numpy.savetxt(output_path + "hera_350_skymodel.txt", hera_350_sky)
+        numpy.savetxt(output_path + "ska_low_skymodel.txt", ska_low_sky)
         numpy.savetxt(output_path + "mwa_hexes_skymodel.txt",  mwa_hexes_sky)
         numpy.savetxt(output_path + "mwa_compact_skymodel.txt", mwa_compact_sky)
-
-    if load_data:
-        redundant_data = numpy.loadtxt(output_path + "redundant_crlb.txt")
-        sky_data = numpy.loadtxt(output_path + "skymodel_crlb.txt")
-    if make_plot:
-        plot_cramer_bound(redundant_data, sky_data, plot_path=output_path)
-        if show_plot:
-            pyplot.show()
     return
 
 
@@ -487,6 +484,12 @@ def compute_fisher_information(covariance_matrix, jacobian, covariance_jacobian 
 
 
 def compute_cramer_rao_lower_bound(fisher_information, verbose =True):
+    print(fisher_information.shape)
+    print(pyplot.get_backend())
+    print("HELLO I AM HERE")
+    pyplot.imshow(fisher_information)
+    pyplot.show()
+
     if type(fisher_information) == numpy.ndarray:
         cramer_rao_lower_bound = 2*numpy.real(numpy.linalg.pinv(fisher_information))
         if verbose:
@@ -494,6 +497,8 @@ def compute_cramer_rao_lower_bound(fisher_information, verbose =True):
     else:
         cramer_rao_lower_bound = 2 * numpy.real(1 / fisher_information)
 
+    pyplot.imshow(cramer_rao_lower_bound)
+    pyplot.show()
     return cramer_rao_lower_bound
 
 
@@ -610,8 +615,9 @@ def telescope_bounds(position_path, bound_type="redundant", nu=150e6, position_p
                                                   sky_model_depth=sky_model_depth)
         crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(redundant_crlb)), absolute_crlb])
     elif bound_type == "sky":
+        print(pyplot.get_backend())
         redundant_table = redundant_baseline_finder(telescope.baseline_table, group_minimum=1)
-        sky_crlb = sky_calibration_crlb(redundant_table, sky_model_depth=sky_model_depth )
+        sky_crlb = sky_calibration_crlb(redundant_table, sky_model_depth=sky_model_depth)
         crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(sky_crlb))])
 
     return crlb_data
