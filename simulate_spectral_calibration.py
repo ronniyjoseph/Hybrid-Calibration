@@ -60,7 +60,6 @@ def calibration_simulation(frequency_range, antenna_diameter, noise_fraction_bri
 
     antenna_table = AntennaPositions(load=False, shape=['doublehex', 14, 0, 0, 100, 250])
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
-    antenna_table.antenna_gains[2] = 2
     print(f"Progress: \r", )
     for i in range(n_realisations):
         if (i / n_realisations * 100 % 10) == 0.0:
@@ -78,15 +77,18 @@ def calibration_simulation(frequency_range, antenna_diameter, noise_fraction_bri
 
 
 def calibration_realisation(frequency_range, antenna_table, noise_fraction_brightest_source, antenna_size,
-                            position_precision=0, broken_tile_fraction=0.0, sky_model_limit=1e-1, seed=None,
+                            position_precision=0, gain_precision = 0.2, broken_tile_fraction=0.0, sky_model_limit=1e-1, seed=None,
                             save_inputs=True, output_path=None):
     if seed is None:
         numpy.random.seed(seed)
 
-    position_errors = numpy.random.normal(loc=0, scale=position_precision, size=2 * antenna_table.antenna_ids.shape[0])
+    position_errors = numpy.random.normal(loc=0, scale=position_precision, size=2 * githsantenna_table.antenna_ids.shape[0])
+    gain_errors = numpy.random.normal(loc=1, scale=0.2, size = )
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
     antenna_table.x_coordinates += position_errors[:len(antenna_table.antenna_ids)]
     antenna_table.y_coordinates += position_errors[len(antenna_table.antenna_ids):]
+    antenna_table.antenna_gains = numpy.random.normal(loc=1, scale=0.2, size = )
+
     baseline_table = BaselineTable(position_table=antenna_table, frequency_channels=frequency_range)
 
     # We go down to 40 mili-Jansky to get about 10 calibration sources
