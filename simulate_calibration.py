@@ -32,7 +32,7 @@ def main(mode="run"):
     # position noise of 0.04 wavelengths
     # per visibility noise 0.1*brightes source
 
-    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky_low_noise/"
     frequency_range = numpy.array([150])*1e6
     tile_size = 4  # wavelengths
     noise_fraction_brightest_source = 0.1
@@ -121,7 +121,7 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
         numpy.save(output_path + f"realisation_{seed}/" + "antenna_gains", antenna_table.antenna_gains)
 
     # Create thermal noise
-    noise_level = thermal_variance()
+    noise_level = 0.1 #thermal_variance()
     # now compute the visibilities
     ideal_visibilities = sky_realisation.create_visibility_model(baseline_table, frequency_range, antenna_size=antenna_size)
     noise_realisation = numpy.random.normal(scale=noise_level, size=(ideal_visibilities.shape[0], 2))
