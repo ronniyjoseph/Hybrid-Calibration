@@ -32,7 +32,7 @@ def main(mode="run"):
     # position noise of 0.04 wavelengths
     # per visibility noise 0.1*brightes source
 
-    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky_low_noise/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky2_low_noise/"
     frequency_range = numpy.array([150])*1e6
     tile_size = 4  # wavelengths
     noise_fraction_brightest_source = 0.1
@@ -107,7 +107,7 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
     baseline_table = BaselineTable(position_table=antenna_table, frequency_channels=frequency_range)
 
     # We go down to 40 mili-Jansky to get about 10 calibration sources
-    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=1)
+    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=512)
     sky_model_sources = find_sky_model_sources(sky_realisation, frequency_range, antenna_size=antenna_size,
                                                sky_model_depth=sky_model_limit)
     print(f"Including {len(sky_model_sources.l_coordinates)} sources in the sky model")
