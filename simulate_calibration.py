@@ -32,14 +32,14 @@ def main(mode="run"):
     # position noise of 0.04 wavelengths
     # per visibility noise 0.1*brightes source
 
-    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky2_low_noise/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Testing/"
     frequency_range = numpy.array([150])*1e6
     tile_size = 4  # wavelengths
     noise_fraction_brightest_source = 0.1
     position_precision = 0
     broken_tile_fraction = 0
     sky_model_limit = 6
-    n_realisations = 1000
+    n_realisations = 100
 
     if mode == "run":
         print(f"Running Simulation")
@@ -103,11 +103,10 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
     antenna_table.x_coordinates += position_errors[:len(antenna_table.antenna_ids)]
     antenna_table.y_coordinates += position_errors[len(antenna_table.antenna_ids):]
-    print(antenna_table.antenna_gains[2])
     baseline_table = BaselineTable(position_table=antenna_table, frequency_channels=frequency_range)
 
     # We go down to 40 mili-Jansky to get about 10 calibration sources
-    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=512)
+    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=1)
     sky_model_sources = find_sky_model_sources(sky_realisation, frequency_range, antenna_size=antenna_size,
                                                sky_model_depth=sky_model_limit)
     print(f"Including {len(sky_model_sources.l_coordinates)} sources in the sky model")
@@ -147,6 +146,7 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
     model_vectors = generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size)
     covariance_vectors = generate_covariance_vectors(baseline_table.number_of_baselines, frequency_range,
                                                      sky_model_limit)
+
     noise_split = numpy.zeros(data_vector.shape[0]) + noise_level
 
     print("Calibrating the Sky")
