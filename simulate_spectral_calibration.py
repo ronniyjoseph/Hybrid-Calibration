@@ -82,7 +82,7 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
     if seed is None:
         numpy.random.seed(seed)
 
-    position_errors = numpy.random.normal(loc=0, scale=position_precision, size=2 * githsantenna_table.antenna_ids.shape[0])
+    position_errors = numpy.random.normal(loc=0, scale=position_precision, size=2 * antenna_table.antenna_ids.shape[0])
     gain_errors = numpy.random.normal(loc=1, scale=0.2, size = )
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
     antenna_table.x_coordinates += position_errors[:len(antenna_table.antenna_ids)]
