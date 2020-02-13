@@ -5,18 +5,22 @@ import numpy
 def main():
     path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky/"
     input_parameters = numpy.loadtxt(path + "input_parameters.txt")
-    n_realisations = 1000 #input_parameters[-1]
+    n_realisations = 100 #input_parameters[-1]
     data = load_data(path, n_realisations)
     antenna_index = 2
-    all_gain_amplitudes = numpy.abs(data.flatten())
 
+    all_gain_amplitudes = numpy.abs(data.flatten())
     all_gain_phases = numpy.angle(data.flatten())
+
     gain_2_amplitudes = numpy.abs(data[antenna_index, :])
     gain_2_phases = numpy.angle(data[antenna_index, :])
 
+    # all_gain_amplitudes = numpy.std(numpy.abs(data), axis=0)
+    # all_gain_phases = numpy.std(numpy.angle(data), axis = 0)
+
     figure, axes = pyplot.subplots(2, 2, figsize=(10, 10))
-    #axes[0, 1].hist(all_gain_amplitudes, bins=numpy.logspace(-1, numpy.log10(max(all_gain_amplitudes)), 100))
-    axes[0, 1].hist([all_gain_amplitudes, gain_2_amplitudes], bins=100)
+
+    axes[0, 1].hist([all_gain_amplitudes, gain_2_amplitudes], bins=50)
     axes[0, 0].hist([all_gain_amplitudes[all_gain_amplitudes < 2.5], gain_2_amplitudes[gain_2_amplitudes < 2.5]], bins=50)
 
     axes[1, 0].hist([all_gain_phases, gain_2_phases], bins=50)
