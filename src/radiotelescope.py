@@ -43,11 +43,35 @@ class AntennaPositions:
             self.x_coordinates = None
             self.y_coordinates = None
             self.z_coordinates = None
-        self.antenna_gains = numpy.zeros(len(self.antenna_ids), dtype=complex) + 1 + 0j
+
+        if self.antenna_ids is not None:
+            self.antenna_gains = numpy.zeros(len(self.antenna_ids), dtype=complex) + 1 + 0j
         return
 
     def number_antennas(self):
         return len(self.antenna_ids)
+
+    def save_position_table(self, path=None, filename=None):
+
+        if path is None:
+            path = "./"
+        if filename is None:
+            filename = "telescope_positions"
+
+        data = numpy.stack((self.antenna_ids, self.x_coordinates, self.y_coordinates, self.z_coordinates))
+        numpy.save(path + filename, data)
+        return
+
+    def save_gain_table(self, path=None, filename=None):
+
+        if path is None:
+            path = "./"
+        if filename is None:
+            filename = "telescope_gains"
+
+        data = self.antenna_gains
+        numpy.save(path + filename, data)
+        return
 
 
 class BaselineTable:
@@ -170,6 +194,18 @@ class BaselineTable:
         if self.group_indices is not None:
             subtable.group_indices = self.group_indices[baseline_selection_indices]
         return subtable
+
+    def save_table(self, path=None, filename=None):
+
+        if path is None:
+            path = "./"
+        if filename is None:
+            filename = "baseline_table"
+
+        data = numpy.stack((self.antenna_id1, self.antenna_id2, self.u_coordinates, self.v_coordinates,
+                            self.w_coordinates))
+        numpy.save(path + filename, data)
+        return
 
 
 def beam_width(frequency =150e6, diameter=4, epsilon=1):
