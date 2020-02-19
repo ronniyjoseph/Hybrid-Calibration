@@ -1,5 +1,6 @@
 import numpy
-from numba import prange, njit
+import powerbox
+from numba import prange, njit, float32, complex64, void
 from .radiotelescope import ideal_gaussian_beam
 
 
@@ -121,9 +122,11 @@ class SkyRealisation:
                                                         frequency_range=frequency_channels,
                                                         antenna_diameter=antenna_size)
         elif mode == 'numerical':
-            # check whether sky_image has already been created
-            print("Numerical Method is not yet supported")
+
+
+
             pass
+
         return visibilities
 
     def save_table(self, path=None, filename=None):
@@ -195,26 +198,28 @@ def check_type_convert_to_array(input_values):
     return converted
 
 
+
+
 def create_visibilities_analytic(source_population, baseline_table, frequency_range, antenna_diameter=4):
     observations = numpy.zeros((baseline_table.number_of_baselines, len(frequency_range)), dtype=complex)
 
     # pre-compute all apparent fluxes at all frequencies
-    apparent_flux = apparent_fluxes_numba(source_population, frequency_range, antenna_diameter)
-    numba_loop(observations, apparent_flux, source_population.l_coordinates,
-               source_population.m_coordinates, baseline_table.u(frequency_range),
-               baseline_table.v(frequency_range))
-
+    apparent_flux = numpy.complex64(apparent_fluxes_numba(source_population, frequency_range, antenna_diameter))
+    u_coordinates = baseline_table.u(frequency_range)
+    v_coordinates = baseline_table.v(frequency_range)
+    numba_loop(observations, apparent_flux, source_population.l_coordinates, source_population.m_coordinates,
+               u_coordinates, v_coordinates)
     return observations
 
 
 @njit(parallel=True)
 def numba_loop(observations, fluxes, l_source, m_source, u_baselines, v_baselines):
-    for source_index in prange(len(fluxes)):
-        for baseline_index in range(u_baselines.shape[0]):
+    for baseline_index in prange(u_baselines.shape[0]):
+        for source_index in range(len(fluxes)):
             for frequency_index in range(u_baselines.shape[1]):
-                kernel = numpy.exp(
-                    -2j * numpy.pi * (u_baselines[baseline_index, frequency_index] * l_source[source_index] +
-                                      v_baselines[baseline_index, frequency_index] * m_source[source_index]))
+                kernel = numpy.exp(-2j * numpy.pi *
+                                   (u_baselines[baseline_index, frequency_index] * l_source[source_index] +
+                                    v_baselines[baseline_index, frequency_index] * m_source[source_index]))
                 observations[baseline_index, frequency_index] += fluxes[source_index, frequency_index] * kernel
 
 
