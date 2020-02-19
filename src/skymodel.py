@@ -1,5 +1,6 @@
 import numpy
 import powerbox
+from scipy import interpolate
 from numba import prange, njit, float32, complex64, void
 from .radiotelescope import ideal_gaussian_beam
 
@@ -122,10 +123,8 @@ class SkyRealisation:
                                                         frequency_range=frequency_channels,
                                                         antenna_diameter=antenna_size)
         elif mode == 'numerical':
-
-
-
-            pass
+            visibilities = create_visibilities_numerical(self, baseline_table_object, frequency_channels,
+                                                         antenna_size=antenna_size)
 
         return visibilities
 
@@ -198,6 +197,55 @@ def check_type_convert_to_array(input_values):
     return converted
 
 
+def create_visibilities_numerical(sky_realisation_object, baseline_table_object, frequency_channel, antenna_size):
+    # check whether sky_image has already been created
+    gridded_sky, l_coordinates = sky_realisation_object.create_sky_image(frequency_channel,
+                                                       baseline_table=baseline_table_object)
+    ll, mm = numpy.meshgrid(l_coordinates, l_coordinates)
+    primary_beam = ideal_gaussian_beam(ll, mm, nu = frequency_channel, diameter=antenna_size)
+    image_size = gridded_sky.shape[0]
+    gridded_visibilities, uv_grid = powerbox.dft.fft(numpy.fft.ifftshift(numpy.pad(primary_beam*gridded_sky,
+                                                                          (image_size*3,image_size*3), mode='constant')),
+                                            L=2, axes=(0, 1))
+    print(gridded_visibilities.shape)
+    observations = uv_list_to_baseline_measurements(baseline_table_object, frequency_channel, gridded_visibilities, uv_grid)
+    return
+
+
+def uv_list_to_baseline_measurements(baseline_table_object, frequency_channels, visibility_grid, uv_grid):
+    n_frequencies = len(frequency_channels)
+    n_measurements = baseline_table_object.number_of_baselines
+    # #First of all convert the uv_grid to a bin_edges array
+    u_bin_size = numpy.median(numpy.diff(uv_grid[0]))
+    v_bin_size = numpy.median(numpy.diff(uv_grid[1]))
+
+    u_bin_centers = uv_grid[0] - u_bin_size / 2.
+    v_bin_centers = uv_grid[1] - v_bin_size / 2.
+
+    #now we have the bin edges we can start binning our baseline table
+    #Create an empty array to store our baseline measurements in
+    visibilities = numpy.zeros((n_measurements, n_frequencies), dtype=complex)
+
+    for frequency_index in range(n_frequencies):
+        visibility_data = visibility_grid
+
+        real_component = interpolate.RegularGridInterpolator((u_bin_centers, v_bin_centers), numpy.real(visibility_data))
+        imag_component = interpolate.RegularGridInterpolator((u_bin_centers, v_bin_centers), numpy.imag(visibility_data))
+
+
+        visibilities[:, frequency_index] = real_component(baseline_table_object.u(frequency_channels),
+                                                          baseline_table_object.v(frequency_channels[frequency_index])) + \
+                                           1j*imag_component(baseline_table_object.u(frequency_channels[frequency_index]),
+                                                          baseline_table_object.v(frequency_channels[frequency_index]))
+
+
+        #u_index = numpy.digitize(baseline_table[:, 2, frequency_index], bins=u_bin_edges)
+        #v_index = numpy.digitize(baseline_table[:, 3, frequency_index], bins=v_bin_edges)
+
+        #print("centers in u bins", u_bin_centers[u_index-1]
+        #visibilities[:, frequency_index] = visibility_grid[u_index, v_index,frequency_index]
+
+    return visibilities
 
 
 def create_visibilities_analytic(source_population, baseline_table, frequency_range, antenna_diameter=4):
