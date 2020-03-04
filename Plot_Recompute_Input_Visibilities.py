@@ -3,16 +3,16 @@ import numpy
 import sys
 from src.radiotelescope import AntennaPositions
 from src.radiotelescope import BaselineTable
-
+from src.plottools import colorbar
 sys.path.append("../../CorrCal_UKZN_Development/corrcal")
 from corrcal import grid_data
 
 
 def main():
     data_type = "noise_visibilities"
-    path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Linear_No_Models/"
+    path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Square_Large_Array_100Jy_Noise_No_Models/"
     input_parameters = numpy.loadtxt(path + "input_parameters.txt")
-    n_realisations = 100 #input_parameters[-1]
+    n_realisations = 1000 #input_parameters[-1]
     ideal_visibilities = load_data(path, 'ideal_visibilities', n_realisations)
     noise_visibilities = load_data(path, 'noise_visibilities', n_realisations)
     measured_visibilities = load_data(path, "measured_visibilities", n_realisations)
@@ -50,28 +50,14 @@ def main():
     axes[1, 1].imshow(numpy.imag(noise_covariance), interpolation=None)
     axes[1, 2].imshow(numpy.imag(data_covariance), interpolation=None)
 
-    # axes[0, 0].hist(amplitudes, bins=100)
-    # axes[0, 1].hist(phases, bins=100)
-    #
-    # axes[1, 0].hist(real, bins=100)
-    # axes[1, 1].hist(imaginary, bins=100)
+    #colorbar(axes[0, 0])
+    # colorbar(axes[0, 1])
+    # colorbar(axes[0, 2])
+    # colorbar(axes[1, 0])
+    # colorbar(axes[1, 1])
+    # colorbar(axes[1, 2])
 
-    # axes[0, 1].set_xscale('log')
-
-    # axes[0, 0].set_yscale('log')
-    # axes[0, 1].set_yscale('log')
-    # axes[1, 0].set_yscale('log')
-    # axes[1, 1].set_yscale('log')
-    #
-    # axes[0, 0].set_xlabel(r'$|V|$')
-    # axes[0, 1].set_xlabel(r'$ \mathrm{arg}\left(V\right)\,  [rad] $')
-    # axes[1, 0].set_xlabel(r'$ \mathcal{Re}(V)$')
-    # axes[1, 1].set_xlabel(r'$ \mathcal{Im}(V)$')
-    #
-    # axes[0, 0].set_ylabel(r'Number of solutions')
-    # axes[1, 0].set_ylabel(r'Number of solutions')
-    #
-    # figure.suptitle(data_type)
+    figure.savefig(path + "visibilities.pdf")
     pyplot.show()
     return
 
