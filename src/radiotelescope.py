@@ -46,6 +46,8 @@ class AntennaPositions:
 
         if self.antenna_ids is not None:
             self.antenna_gains = numpy.zeros(len(self.antenna_ids), dtype=complex) + 1 + 0j
+        else:
+            self.antenna_gains = None
         return
 
     def number_antennas(self):
