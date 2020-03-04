@@ -2,7 +2,7 @@ import sys
 import numpy
 from .radiotelescope import BaselineTable
 from .skymodel import apparent_fluxes_numba
-
+from matplotlib import pyplot
 sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
 
 from analytic_covariance import sky_covariance
@@ -29,7 +29,7 @@ def find_sky_model_sources(sky_realisation, frequency_range, antenna_size = 4, s
 
 def generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size, sorting_indices = None):
     number_of_sources = len(sky_model_sources.fluxes)
-    sky_vectors = numpy.zeros((number_of_sources, baseline_table.number_of_baselines*2))
+    sky_vectors = numpy.zeros((number_of_sources, 2*baseline_table.number_of_baselines))
     for i in range(number_of_sources):
         single_source = sky_model_sources.select_sources(i)
         source_visibilities = single_source.create_visibility_model(baseline_table, frequency_range, antenna_size)
@@ -43,8 +43,7 @@ def generate_covariance_vectors(number_of_baselines, frequency_range, sky_model_
     covariance_vectors = numpy.zeros((2, number_of_baselines*2))
     covariance_vectors[0::2, 0::2] = 1
     covariance_vectors[1::2, 1::2] = 1
-    covariance_vectors *= sky_covariance(0, 0, frequency_range, S_high = sky_model_limit)
-
+    covariance_vectors *= numpy.sqrt(sky_covariance(0, 0, frequency_range, S_high = sky_model_limit))
     return covariance_vectors
 
 
@@ -153,3 +152,4 @@ def redundant_baseline_finder(baseline_table_object, group_minimum=3, threshold=
     table_object.number_of_baselines = len(redundant_baselines[:, 0])
 
     return table_object
+
