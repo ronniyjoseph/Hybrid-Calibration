@@ -19,21 +19,21 @@ def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode =
         vv2 = v
         uu1 = u
         uu2 = u
-        delta_u = position_precision / c * nu[0]
+        delta_u = position_precision* nu[0] / c
     else:
         nn1 = nu
         nn2 = nu
         vv1, vv2 = numpy.meshgrid(v, v)
         uu1, uu2 = numpy.meshgrid(u, u)
-        delta_u = position_precision / c*nu
+        delta_u = position_precision*nu / c
 
     beamwidth1 = beam_width(nn1, diameter=tile_diameter)
     beamwidth2 = beam_width(nn2, diameter=tile_diameter)
 
-    sigma_nu = beamwidth1**2*beamwidth2**2/(beamwidth1**2 + beamwidth2**2)
-    kernel = -2*numpy.pi**2*sigma_nu*((uu1*nn1 - uu2*nn2)**2 + (vv1*nn1 - vv2*nn2)**2 )/nu_0**2
-    a = 16*numpy.pi**3*mu_2*(nn1*nn2/nu_0**2)**(1-gamma)*delta_u**2*sigma_nu*numpy.exp(kernel)*(1+2*kernel)
-    # b = mu_1**2*(nn1*nn2)**(-gamma)*delta_u**2
+    sigma = beamwidth1**2*beamwidth2**2/(beamwidth1**2 + beamwidth2**2)
+    kernel = -2*numpy.pi**2*sigma*((uu1*nn1 - uu2*nn2)**2 + (vv1*nn1 - vv2*nn2)**2 )/nu_0**2
+    a = 16*numpy.pi**3*mu_2*(nn1*nn2/nu_0**2)**(1-gamma)*delta_u**2*sigma*numpy.exp(kernel)*(1+2*kernel)
+    b = mu_1**2*(nn1*nn2)**(-gamma)*delta_u**2
     covariance = a
     return covariance
 
@@ -102,10 +102,10 @@ def sky_covariance(nu, u, v, S_low=1e-5, S_mid=1, S_high=1, gamma=0.8, mode = 'f
     return covariance
 
 
-def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
-    variance = sefd / numpy.sqrt(bandwidth * t_integrate)
+def thermal_noise(sefd=20e3, bandwidth=40e3, t_integrate=120):
+    noise = sefd / numpy.sqrt(bandwidth * t_integrate)
 
-    return variance
+    return noise
 
 
 def dft_matrix(nu):
