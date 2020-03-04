@@ -10,7 +10,7 @@ from scipy.constants import c
 sys.path.append("../../CorrCal_UKZN_Development/corrcal")
 from corrcal import grid_data
 
-from src.covariance import thermal_variance
+from src.covariance import thermal_noise
 from src.radiotelescope import AntennaPositions
 from src.radiotelescope import BaselineTable
 from src.skymodel import SkyRealisation
@@ -32,14 +32,14 @@ def main(mode="run"):
     # position noise of 0.04 wavelengths
     # per visibility noise 0.1*brightest source
 
-    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Linear_No_Models/"
-    frequency_range = numpy.array([150, 151])*1e6
+    output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Square_Large_Array_100Jy_Noise_No_Models/"
+    frequency_range = numpy.array([150])*1e6
     tile_size = 4  # wavelengths
     noise_fraction_brightest_source = 0.1
     position_precision = 0
     broken_tile_fraction = 0
     sky_model_limit = 12
-    n_realisations = 100
+    n_realisations = 1000
 
     if mode == "run":
         print(f"Running Simulation")
@@ -75,7 +75,9 @@ def calibration_simulation(frequency_range, antenna_diameter, noise_fraction_bri
         header_string = "Position_Precision[m]  Broken_Tile[Fraction]   Sky_Model_Depth[Jy] , Realisations"
         numpy.savetxt(output_path + "input_parameters.txt", input_parameters.T, header=header_string)
 
-    antenna_table = AntennaPositions(load=False, shape=['linear', 14, 5])
+    # antenna_table = AntennaPositions(load=False, shape=['linear', 1000, 20])
+    antenna_table = AntennaPositions(load=False, shape=['square', 100, 4, 0, 0 ])
+
     antenna_table.antenna_ids = numpy.arange(0, len(antenna_table.antenna_ids), 1)
     antenna_table.antenna_gains[2] = 2
 
@@ -107,7 +109,7 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
     baseline_table = BaselineTable(position_table=antenna_table, frequency_channels=frequency_range)
 
     # We go down to 40 mili-Jansky to get about 10 calibration sources
-    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=1,)
+    sky_realisation = SkyRealisation(sky_type="random", flux_low=40e-3, flux_high=10, seed=seed)
     # sky_realisation = SkyRealisation(sky_type="point", fluxes=numpy.array([10, 1]), l_coordinates=numpy.array([0.1, 0.2]),
     #                                  m_coordinates=numpy.array([0, 0.15]), spectral_indices=numpy.array([0.8, 0.8]))
     # print(sky_realisation.l_coordinates.shape)
@@ -125,10 +127,10 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
         baseline_table.save_table(output_path + f"realisation_{seed}/", "baseline_table")
 
     # Create thermal noise
-    noise_level = thermal_variance()
+    noise_level = 1e2#thermal_noise()
     # now compute the visibilities
-    ideal_visibilities = sky_realisation.create_visibility_model(baseline_table, frequency_range, antenna_size=antenna_size)
-
+    ideal_visibilities = sky_realisation.create_visibility_model(baseline_table, frequency_range,
+                                                                 antenna_size=antenna_size)
     noise_realisation = numpy.random.normal(scale=noise_level, size=(ideal_visibilities.shape[0], 2))
     noise_visibilities = numpy.zeros_like(ideal_visibilities)
     noise_visibilities[:, 0] = noise_realisation[:, 0] + 1j*noise_realisation[:, 1]
@@ -150,9 +152,9 @@ def calibration_realisation(frequency_range, antenna_table, noise_fraction_brigh
 
     data_vector = split_visibility(data_sorted)
     model_vectors = generate_sky_model_vectors(sky_model_sources, baseline_table, frequency_range, antenna_size)
-    covariance_vectors = generate_covariance_vectors(baseline_table.number_of_baselines, frequency_range,
+    covariance_vectors = 1.5*generate_covariance_vectors(baseline_table.number_of_baselines, frequency_range,
                                                      10)
-    noise_split = numpy.zeros(data_vector.shape[0]) + noise_level
+    noise_split = numpy.zeros(data_vector.shape[0]) + noise_level**2
 
     print("Calibrating the Sky")
     gain_solutions = hybrid_calibration(data_vector, noise_split, covariance_vectors, model_vectors, edges_sorted,
