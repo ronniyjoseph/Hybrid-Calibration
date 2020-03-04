@@ -6,7 +6,7 @@ from .generaltools import from_u_to_k_perp
 from .generaltools import from_jansky_to_milikelvin
 
 
-def colorbar(mappable, extend = 'neither'):
+def colorbar(mappable, extend='neither'):
     ax = mappable.axes
     fig = ax.figure
     divider = make_axes_locatable(ax)
