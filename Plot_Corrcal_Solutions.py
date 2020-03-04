@@ -3,9 +3,9 @@ import numpy
 
 
 def main():
-    path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Initial_Testing2_Gain_2_Two_Fixed_Sky/"
+    path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/Square_Large_Array_100Jy_Noise_No_Models/"
     input_parameters = numpy.loadtxt(path + "input_parameters.txt")
-    n_realisations = 100 #input_parameters[-1]
+    n_realisations = 630 #input_parameters[-1]
     data = load_data(path, n_realisations)
     antenna_index = 2
 
@@ -26,7 +26,7 @@ def main():
     axes[1, 0].hist([all_gain_phases, gain_2_phases], bins=50)
     axes[1, 1].axis("off")
 
-    axes[0, 0].axvline(x=2, color = 'k')
+    # axes[0, 0].axvline(x=2, color = 'k')
 
     # axes[0, 1].set_xscale('log')
 
@@ -42,6 +42,7 @@ def main():
     axes[1, 0].set_ylabel(r'Number of solutions')
 
     figure.suptitle(r'Corrcal with $g_{2} = 1$')
+    figure.savefig(path + "Solutions_hist.pdf")
     pyplot.show()
     return
 
