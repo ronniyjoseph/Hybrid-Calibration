@@ -6,8 +6,6 @@ from numba import prange, njit
 from matplotlib import pyplot
 from src.util import redundant_baseline_finder
 
-# sys.path.append("../../beam_perturbations/code/tile_beam_perturbations/")
-
 from src.radiotelescope import BaselineTable
 from src.skymodel import SkyRealisation
 from src.skymodel import create_visibilities_analytic
@@ -17,12 +15,12 @@ from simulate_beam_covariance_data import plot_covariance_data
 import time
 
 
-def position_covariance_simulation(array_size=3, create_signal=True, compute_covariance=True, plot_covariance=True,
+def position_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
                                    show_plot = True):
     output_path = "/data/rjoseph/Hybrid_Calibration/numerical_simulations/"
     project_path = "position_covariance_numerical/"
-    n_realisations = 10000
-    position_precision = 1e-2
+    n_realisations = 1400
+    position_precision = 1e-3
     if not os.path.exists(output_path + project_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path + project_path)
@@ -32,8 +30,8 @@ def position_covariance_simulation(array_size=3, create_signal=True, compute_cov
                                output_data=True)
 
     if compute_covariance:
-        # compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='model')
-        # compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='perturbed')
+        compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='model')
+        compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='perturbed')
         compute_baseline_covariance(hex_telescope, output_path + project_path, n_realisations, data_type='residual')
 
     if plot_covariance:
@@ -50,7 +48,7 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
         print("Creating realisation folder in Project path")
         os.makedirs(path + "/" + "Simulated_Visibilities")
 
-    ideal_baselines = redundant_baseline_finder(telescope_object.baseline_table)
+    ideal_baselines = telescope_object.baseline_table
 
     for i in range(n_realisations):
         print(f"Realisation {i}")
@@ -64,26 +62,21 @@ def create_visibility_data(telescope_object, position_precision, n_realisations,
         perturbed_telescope.antenna_positions.y_coordinates += y_offsets
 
         perturbed_telescope.baseline_table = BaselineTable(position_table = perturbed_telescope.antenna_positions)
-        perturbed_baselines = redundant_baseline_finder(perturbed_telescope.baseline_table)
+        perturbed_baselines = perturbed_telescope.baseline_table
 
-        if perturbed_baselines.number_of_baselines < ideal_baselines.number_of_baselines:
-            map = perturbed_to_original_mapper(ideal_baselines, perturbed_baselines)
-        else:
-            map = numpy.arange(0, perturbed_baselines.number_of_baselines, 1, dtype = int)
+        # if perturbed_baselines.number_of_baselines < ideal_baselines.number_of_baselines:
+        #     map = perturbed_to_original_mapper(ideal_baselines, perturbed_baselines)
+        # else:
+        #     map = numpy.arange(0, perturbed_baselines.number_of_baselines, 1, dtype = int)
         model_visibilities = source_population.create_visibility_model(ideal_baselines,
                                                           frequency_channels = numpy.array([150e6]))
-
-        perturbed_visibilities = numpy.zeros_like(model_visibilities)
-        print(map)
-        print(model_visibilities.shape)
-        print(perturbed_visibilities.shape)
-        print(source_population.create_visibility_model(perturbed_baselines,
-                                                           frequency_channels = numpy.array([150e6])).shape)
-        perturbed_visibilities[map] = source_population.create_visibility_model(perturbed_baselines,
+        #
+        # perturbed_visibilities = numpy.zeros_like(model_visibilities)
+        perturbed_visibilities = source_population.create_visibility_model(perturbed_baselines,
                                                            frequency_channels = numpy.array([150e6]))
 
-        residual_visibilities = numpy.zeros_like(model_visibilities)
-        residual_visibilities[map] = model_visibilities[map] - perturbed_visibilities[map]
+        # residual_visibilities = numpy.zeros_like(model_visibilities)
+        residual_visibilities = model_visibilities - perturbed_visibilities
 
         numpy.save(path + "/" + "Simulated_Visibilities/" + f"model_realisation_{i}", model_visibilities.flatten())
         numpy.save(path + "/" + "Simulated_Visibilities/" + f"perturbed_realisation_{i}", perturbed_visibilities.flatten())
