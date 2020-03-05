@@ -15,6 +15,10 @@ from src.skymodel import create_visibilities_analytic
 from src.generaltools import from_lm_to_theta_phi
 from src.plottools import colorbar
 
+sys.path.append("../../CorrCal_UKZN_Development/corrcal")
+from corrcal import grid_data
+from matplotlib import pyplot
+
 
 def beam_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
                                show_plot=True):
@@ -92,6 +96,7 @@ def create_hex_telescope(size):
     antenna_table.x_coordinates = antenna_positions[:, 0]
     antenna_table.y_coordinates = antenna_positions[:, 1]
     antenna_table.z_coordinates = antenna_positions[:, 2]
+    antenna_table.antenna_gains = numpy.zeros(len(antenna_positions[:, 0]), dtype=complex) + 1 + 0j
 
     hex_telescope.antenna_positions = antenna_table
     hex_telescope.baseline_table = BaselineTable(position_table=antenna_table)
@@ -142,25 +147,40 @@ def numba_perturbed_loop(observations, fluxes, l_source, m_source, u_baselines, 
                                                    broken_flags2[baseline_index]] * kernel
 
 
-def compute_baseline_covariance(telescope_object, path, n_realisations, data_type = "residual"):
+def compute_baseline_covariance(telescope_object, path, n_realisations, data_type = "residual", figure = None,
+                                axes = None):
     original_table = telescope_object.baseline_table
-    redundant_baselines = redundant_baseline_finder(original_table)
+
+    dummy_data = numpy.zeros(telescope_object.baseline_table.number_of_baselines, dtype = complex)
+    data_sorted, u_sorted, v_sorted, noise_sorted, ant1_sorted, ant2_sorted, edges_sorted, sorting_indices, \
+    conjugation_flag = grid_data(dummy_data,
+                                 telescope_object.baseline_table.u_coordinates,
+                                 telescope_object.baseline_table.v_coordinates,
+                                 dummy_data,
+                                 telescope_object.baseline_table.antenna_id1.astype(int),
+                                 telescope_object.baseline_table.antenna_id2.astype(int))
 
     if not os.path.exists(path + "/" + "Simulated_Covariance"):
         print("Creating Covariance folder in Project path")
         os.makedirs(path + "/" + "Simulated_Covariance")
 
-    residuals = numpy.zeros((2*redundant_baselines.number_of_baselines, n_realisations), dtype = complex)
+    residuals = numpy.zeros((2*telescope_object.baseline_table.number_of_baselines, n_realisations), dtype = complex)
     for i in range(n_realisations):
         residuals_realisation = numpy.load(path + "Simulated_Visibilities/" + f"{data_type}_realisation_{i}.npy").flatten()
-        residuals[0::2, i] = numpy.real(residuals_realisation)
-        residuals[1::2, i] = numpy.imag(residuals_realisation)
+        # conjugate data if neccessary
+        # residuals_realisation[conjugation_flag] = numpy.conjugate(residuals_realisation[conjugation_flag])
+
+        # Sort data according to redundant groupings of the idealised array
+        residuals[0::2, i] = numpy.real(residuals_realisation[sorting_indices])
+        residuals[1::2, i] = numpy.imag(residuals_realisation[sorting_indices])
+
     baseline_covariance = numpy.cov(residuals)
     numpy.save(path + "Simulated_Covariance/" + f"baseline_{data_type}_covariance", baseline_covariance)
-    fig, axes = pyplot.subplots(1, 2, figsize=(10,5))
-    axes[0].hist(residuals[0:100:2, :])
-    axes[1].hist(residuals[1:100:2, :])
-    pyplot.show()
+
+    # fig, axes = pyplot.subplots(1, 2, figsize=(10,5))
+    # axes[0].hist(residuals[0:100:2, :])
+    # axes[1].hist(residuals[1:100:2, :])
+    # pyplot.show()
     return
 
 
@@ -175,21 +195,21 @@ def plot_covariance_data(path, simulation_type = "Unspecified"):
     data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_perturbed_covariance.npy"))
     data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_residual_covariance.npy"))
 
-    figure, axes = pyplot.subplots(3, 2, figsize=(8, 12))
+    figure, axes = pyplot.subplots(1, 3, figsize=(15, 5))
     figure.suptitle(f"Baseline {simulation_type} Covariance")
     for i in range(3):
-        realplot = axes[i, 0].imshow(numpy.real(data[i]))
-        imagplot = axes[i, 1].imshow(numpy.imag(data[i]))
+        realplot = axes[i].imshow(numpy.real(data[i]))
+        # imagplot = axes[i, 1].imshow(numpy.imag(data[i]))
         colorbar(realplot)
-        colorbar(imagplot)
+        # colorbar(imagplot)
 
-        axes[i, 0].set_title(f"Re({data_labels[i]})")
-        axes[i, 1].set_title(f"Im({data_labels[i]}) ")
+        axes[i].set_title(f"Re({data_labels[i]})")
+        # axes[i, 1].set_title(f"Im({data_labels[i]}) ")
 
-        axes[i, 0].set_ylabel("Baseline Index")
+        axes[i].set_ylabel("Baseline Index")
         if i == 2:
-            axes[i, 0].set_xlabel("Baseline Index")
-            axes[i, 1].set_xlabel("Baseline Index")
+            axes[i].set_xlabel("Baseline Index")
+            # axes[i, 1].set_xlabel("Baseline Index")
     figure.subplots_adjust(top=0.9)
     figure.savefig(path + "Plots/" +f"{simulation_type}_Covariance_Plot.pdf")
     return
