@@ -19,7 +19,7 @@ def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode =
         vv2 = v
         uu1 = u
         uu2 = u
-        delta_u = position_precision* nu[0] / c
+        delta_u = position_precision*nu[0] / c
     else:
         nn1 = nu
         nn2 = nu
@@ -31,6 +31,7 @@ def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode =
     beamwidth2 = beam_width(nn2, diameter=tile_diameter)
 
     sigma = beamwidth1**2*beamwidth2**2/(beamwidth1**2 + beamwidth2**2)
+
     kernel = -2*numpy.pi**2*sigma*((uu1*nn1 - uu2*nn2)**2 + (vv1*nn1 - vv2*nn2)**2 )/nu_0**2
     a = 16*numpy.pi**3*mu_2*(nn1*nn2/nu_0**2)**(1-gamma)*delta_u**2*sigma*numpy.exp(kernel)*(1+2*kernel)
     b = mu_1**2*(nn1*nn2)**(-gamma)*delta_u**2
@@ -102,28 +103,7 @@ def sky_covariance(nu, u, v, S_low=1e-5, S_mid=1, S_high=1, gamma=0.8, mode = 'f
     return covariance
 
 
-def thermal_noise(sefd=20e3, bandwidth=40e3, t_integrate=120):
-    noise = sefd / numpy.sqrt(bandwidth * t_integrate)
-
-    return noise
-
-
-def dft_matrix(nu):
-    dft = numpy.exp(-2 * numpy.pi * 1j / len(nu)) ** numpy.arange(0, len(nu), 1)
-    dftmatrix = numpy.vander(dft, increasing=True) / numpy.sqrt(len(nu))
-
-    eta = numpy.arange(0, len(nu), 1) / (nu.max() - nu.min())
-    return dftmatrix, eta
-
-
-def blackman_harris_taper(frequency_range):
-    window = signal.blackmanharris(len(frequency_range))
-    return window
-
-
-def compute_ps_variance(taper1, taper2, covariance, dft_matrix):
-    tapered_cov = covariance * taper1 * taper2
-    eta_cov = numpy.dot(numpy.dot(dft_matrix.conj().T, tapered_cov), dft_matrix)
-    variance = numpy.diag(numpy.real(eta_cov))
+def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
+    variance = (sefd / numpy.sqrt(bandwidth * t_integrate))**2
 
     return variance
