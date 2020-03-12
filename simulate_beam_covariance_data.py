@@ -17,7 +17,6 @@ from src.plottools import colorbar
 
 sys.path.append("../../CorrCal_UKZN_Development/corrcal")
 from corrcal import grid_data
-from matplotlib import pyplot
 
 
 def beam_covariance_simulation(array_size=3, create_signal=False, compute_covariance=True, plot_covariance=True,
@@ -68,14 +67,13 @@ def create_visibility_data(telescope_object, n_realisations, path, output_data=F
         os.makedirs(path + "/" + "Simulated_Visibilities")
 
     original_baselines = telescope_object.baseline_table
-    redundant_baselines = redundant_baseline_finder(original_baselines)
 
     for i in range(n_realisations):
         print(f"Realisation {i}")
         broken_flags = broken_tiles(telescope_object, seed=i)
         source_population = SkyRealisation(sky_type='random', flux_high=1, seed = i)
 
-        model_visibilities = create_visibilities_analytic(source_population, redundant_baselines,
+        model_visibilities = source_population.create_visibility_model(source_population, redundant_baselines,
                                                            frequency_range = numpy.array([150e6]))
         perturbed_visibilities = create_perturbed_visibilities(source_population, redundant_baselines, broken_flags)
 
@@ -168,7 +166,7 @@ def compute_baseline_covariance(telescope_object, path, n_realisations, data_typ
     for i in range(n_realisations):
         residuals_realisation = numpy.load(path + "Simulated_Visibilities/" + f"{data_type}_realisation_{i}.npy").flatten()
         # conjugate data if neccessary
-        # residuals_realisation[conjugation_flag] = numpy.conjugate(residuals_realisation[conjugation_flag])
+        residuals_realisation[conjugation_flag] = numpy.conjugate(residuals_realisation[conjugation_flag])
 
         # Sort data according to redundant groupings of the idealised array
         residuals[0::2, i] = numpy.real(residuals_realisation[sorting_indices])
@@ -177,14 +175,10 @@ def compute_baseline_covariance(telescope_object, path, n_realisations, data_typ
     baseline_covariance = numpy.cov(residuals)
     numpy.save(path + "Simulated_Covariance/" + f"baseline_{data_type}_covariance", baseline_covariance)
 
-    # fig, axes = pyplot.subplots(1, 2, figsize=(10,5))
-    # axes[0].hist(residuals[0:100:2, :])
-    # axes[1].hist(residuals[1:100:2, :])
-    # pyplot.show()
     return
 
 
-def plot_covariance_data(path, simulation_type = "Unspecified"):
+def plot_covariance_data(path, simulation_type = "Unspecified", figure=None, axes=None):
     if not os.path.exists(path + "/" + "Plots"):
         print("Creating realisation folder in Project path")
         os.makedirs(path + "/" + "Plots")
@@ -195,7 +189,6 @@ def plot_covariance_data(path, simulation_type = "Unspecified"):
     data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_perturbed_covariance.npy"))
     data.append(numpy.load(path + "Simulated_Covariance/" + f"baseline_residual_covariance.npy"))
 
-    figure, axes = pyplot.subplots(1, 3, figsize=(15, 5))
     figure.suptitle(f"Baseline {simulation_type} Covariance")
     for i in range(3):
         realplot = axes[i].imshow(numpy.real(data[i]))
@@ -205,10 +198,9 @@ def plot_covariance_data(path, simulation_type = "Unspecified"):
 
         axes[i].set_title(f"Re({data_labels[i]})")
         # axes[i, 1].set_title(f"Im({data_labels[i]}) ")
-
-        axes[i].set_ylabel("Baseline Index")
-        if i == 2:
-            axes[i].set_xlabel("Baseline Index")
+        if i == 0 :
+            axes[i].set_ylabel("Baseline Index")
+        axes[i].set_xlabel("Baseline Index")
             # axes[i, 1].set_xlabel("Baseline Index")
     figure.subplots_adjust(top=0.9)
     figure.savefig(path + "Plots/" +f"{simulation_type}_Covariance_Plot.pdf")
