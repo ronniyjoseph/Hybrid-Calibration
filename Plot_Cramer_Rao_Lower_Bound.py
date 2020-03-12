@@ -3,11 +3,11 @@ import numpy
 
 
 def main():
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/CRLB_MWA_Settings/"
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
     # Set all relevant data paths
-    redundant_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/CRLB_MWA_Settings/"
-    skymodel_current_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/CRLB_MWA_Settings/"
-    skymodel_deep_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/CRLB_MWA_LOBES_Settings/"
+    redundant_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
+    skymodel_current_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
+    skymodel_deep_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_10mJy/"
 
     # Import all plotting data
     data_redundant = numpy.loadtxt(redundant_path + "redundant_crlb.txt")
