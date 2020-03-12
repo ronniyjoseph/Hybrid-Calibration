@@ -8,7 +8,7 @@ from .radiotelescope import mwa_dipole_locations
 from .skymodel import sky_moment_returner
 
 
-def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6,
+def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6,
                         tile_diameter = 4, s_high = 10):
     mu_1 = sky_moment_returner(n_order = 1, s_high= s_high)
     mu_2 = sky_moment_returner(n_order = 2, s_high= s_high)
@@ -39,7 +39,8 @@ def position_covariance(nu, u, v, position_precision = 1e-2, gamma = 0.8, mode =
     return covariance
 
 
-def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0, nu_0 = 150e6):
+def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0, nu_0 = 150e6,
+                    calibration_type = "sky"):
     x_offsets, y_offsets = mwa_dipole_locations(dx)
     mu_2 = sky_moment_returner(n_order = 2)
     if mode == "frequency":
@@ -62,24 +63,53 @@ def beam_covariance(nu, u, v, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     width_1_dipole = numpy.sqrt(2) * beam_width(frequency=nn1, diameter=1)
     width_2_dipole = numpy.sqrt(2) * beam_width(frequency=nn2, diameter=1)
 
+
+    kernel = -2 * numpy.pi ** 2 * ((uu1*nn1 - uu2*nn2 + xx*(nn1 - nn2) / c) ** 2 +
+                                             (vv1*nn1 - vv2*nn2 + yy*(nn1 - nn2) / c) ** 2)/nu_0**2
+
     sigma_a = (width_1_tile * width_2_tile * width_1_dipole * width_2_dipole) ** 2 / (
             width_2_tile ** 2 * width_1_dipole ** 2 * width_2_dipole ** 2 +
             width_1_tile ** 2 * width_1_dipole ** 2 * width_2_dipole ** 2 +
             width_1_tile ** 2 * width_2_tile ** 2 * width_1_dipole ** 2 +
             width_1_tile ** 2 * width_2_tile ** 2 * width_2_dipole ** 2)
 
-    kernel = -2 * numpy.pi ** 2 * sigma_a * ((uu1*nn1 - uu2*nn2 + xx*(nn1 - nn2) / c) ** 2 +
-                                             (vv1*nn1 - vv2*nn2 + yy*(nn1 - nn2) / c) ** 2)/nu_0**2
-    a = 2*numpy.pi*mu_2*frequency_scaling**(-gamma) / len(y_offsets) ** 3 * numpy.sum(sigma_a * numpy.exp(kernel),
-                                                                                        axis=-1)
-    b = 1
+    sigma_b = (width_1_tile * width_2_tile * width_2_dipole) ** 2 / (
+            2 * width_2_tile ** 2 * width_2_dipole ** 2 + width_1_tile ** 2 * width_2_dipole ** 2 +
+            width_1_tile ** 2 * width_2_tile ** 2)
 
-    covariance = a
+    sigma_c = (width_1_tile * width_2_tile * width_1_dipole) ** 2 / (
+            width_2_tile ** 2 * width_1_dipole ** 2 + 2 * width_1_tile ** 2 * width_1_dipole ** 2 +
+            width_1_tile ** 2 * width_2_tile ** 2)
 
-    return broken_tile_fraction*covariance
+    sigma_d1 = width_1_tile ** 2 * width_1_dipole ** 2 / (width_1_tile ** 2 + width_1_dipole ** 2)
+    sigma_d2 = width_2_tile ** 2 * width_2_dipole ** 2 / (width_2_tile ** 2 + width_2_dipole ** 2)
+
+    a = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_2_m + mu_2_r) /len(y_offsets) ** 3 * \
+        numpy.sum(sigma_a * numpy.exp(sigma_a*kernel), axis=-1)
+
+    b = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
+        numpy.sum(sigma_b * numpy.exp(sigma_b*kernel), axis=-1)
+
+    c = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
+        numpy.sum(sigma_c * numpy.exp(sigma_c *kernel),axis=-1)
+
+    d = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_1_m + mu_1_r)**2 * \
+        numpy.sum( sigma_d1 * sigma_d2 / len(x_offsets) ** 3 * \
+        numpy.exp(sigma_d1 * kernel)* numpy.exp(sigma_d2 * kernel), axis=-1)
+
+    e = -2 * numpy.pi *frequency_scaling**(-gamma)*(mu_1_m + mu_1_r)**2 * \
+        numpy.sum(sigma_d1 * sigma_d2 / len(x_offsets) ** 4 * numpy.exp(sigma_d1 * kernel), axis=-1) * \
+        numpy.sum(numpy.exp(sigma_d2 * kernel), axis=-1)
+
+    if calibration_type == "redundant":
+        covariance = broken_tile_fraction**2*(a + d + e)
+    if calibration_type == "sky":
+        covariance = broken_tile_fraction**2*(a + b + c + d + e)
+
+    return covariance
 
 
-def sky_covariance(nu, u, v, S_low=1e-5, S_mid=1, S_high=1, gamma=0.8, mode = 'frequency', nu_0 = 150e6):
+def sky_covariance(u, v, nu, S_low=1e-5, S_mid=1, S_high=1, gamma=0.8, mode = 'frequency', nu_0 = 150e6):
     mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
@@ -107,3 +137,7 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
     variance = (sefd / numpy.sqrt(bandwidth * t_integrate))**2
 
     return variance
+
+
+def gain_error_covariance():
+    return
