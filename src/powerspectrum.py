@@ -11,7 +11,7 @@ def discrete_fourier_transform_matrix(nu):
 
 def from_frequency_to_eta(nu):
     eta = numpy.arange(0, len(nu), 1) / (nu.max() - nu.min())
-    return eta
+    return eta[:int(len(nu) / 2)]
 
 
 def blackman_harris_taper(frequency_range):
