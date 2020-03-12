@@ -42,7 +42,12 @@ def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode =
 def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0, nu_0 = 150e6,
                     calibration_type = "sky"):
     x_offsets, y_offsets = mwa_dipole_locations(dx)
-    mu_2 = sky_moment_returner(n_order = 2)
+    mu_1_r = source_count_moment_returner(1, S_low = 100e-3,  S_high=1)
+    mu_2_r = source_count_moment_returner(2, S_low = 100e-3, S_high=1)
+
+    mu_1_m = source_count_moment_returner(1, S_low=1, S_high=10)
+    mu_2_m = source_count_moment_returner(2, S_low=1, S_high=10)
+
     if mode == "frequency":
         nn1, nn2, xx = numpy.meshgrid(nu, nu, x_offsets)
         nn1, nn2, yy = numpy.meshgrid(nu, nu, y_offsets)
@@ -62,7 +67,6 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     width_2_tile = numpy.sqrt(2) * beam_width(frequency=nn2)
     width_1_dipole = numpy.sqrt(2) * beam_width(frequency=nn1, diameter=1)
     width_2_dipole = numpy.sqrt(2) * beam_width(frequency=nn2, diameter=1)
-
 
     kernel = -2 * numpy.pi ** 2 * ((uu1*nn1 - uu2*nn2 + xx*(nn1 - nn2) / c) ** 2 +
                                              (vv1*nn1 - vv2*nn2 + yy*(nn1 - nn2) / c) ** 2)/nu_0**2
@@ -84,27 +88,27 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     sigma_d1 = width_1_tile ** 2 * width_1_dipole ** 2 / (width_1_tile ** 2 + width_1_dipole ** 2)
     sigma_d2 = width_2_tile ** 2 * width_2_dipole ** 2 / (width_2_tile ** 2 + width_2_dipole ** 2)
 
-    a = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_2_m + mu_2_r) /len(y_offsets) ** 3 * \
+    covariance_a = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_2_m + mu_2_r) /len(y_offsets) ** 3 * \
         numpy.sum(sigma_a * numpy.exp(sigma_a*kernel), axis=-1)
 
-    b = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
+    covariance_b = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
         numpy.sum(sigma_b * numpy.exp(sigma_b*kernel), axis=-1)
 
-    c = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
+    covariance_c = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
         numpy.sum(sigma_c * numpy.exp(sigma_c *kernel),axis=-1)
 
-    d = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_1_m + mu_1_r)**2 * \
+    covariance_d = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_1_m + mu_1_r)**2 * \
         numpy.sum( sigma_d1 * sigma_d2 / len(x_offsets) ** 3 * \
         numpy.exp(sigma_d1 * kernel)* numpy.exp(sigma_d2 * kernel), axis=-1)
 
-    e = -2 * numpy.pi *frequency_scaling**(-gamma)*(mu_1_m + mu_1_r)**2 * \
+    covariance_e = -2 * numpy.pi *frequency_scaling**(-gamma)*(mu_1_m + mu_1_r)**2 * \
         numpy.sum(sigma_d1 * sigma_d2 / len(x_offsets) ** 4 * numpy.exp(sigma_d1 * kernel), axis=-1) * \
         numpy.sum(numpy.exp(sigma_d2 * kernel), axis=-1)
 
     if calibration_type == "redundant":
-        covariance = broken_tile_fraction**2*(a + d + e)
+        covariance = broken_tile_fraction**2*(covariance_a + covariance_d + covariance_e)
     if calibration_type == "sky":
-        covariance = broken_tile_fraction**2*(a + b + c + d + e)
+        covariance = broken_tile_fraction**2*(covariance_a + covariance_b + covariance_c + covariance_d + covariance_e)
 
     return covariance
 
@@ -141,3 +145,10 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
 
 def gain_error_covariance():
     return
+
+
+def source_count_moment_returner(n_order, k1=4100, gamma1=1.59, k2=4100, gamma2=2.5, S_low=400e-3, S_mid=1, S_high=5.):
+    moment = k1 / (n_order + 1 - gamma1) * (S_mid ** (n_order + 1 - gamma1)) - S_low ** (n_order + 1 - gamma1) + \
+             k2 / (n_order + 1 - gamma2) * (S_high ** (n_order + 1 - gamma2)) - S_mid ** (n_order + 1 - gamma2)
+
+    return moment
