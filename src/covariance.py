@@ -42,11 +42,11 @@ def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode =
 def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0, nu_0 = 150e6,
                     calibration_type = "sky"):
     x_offsets, y_offsets = mwa_dipole_locations(dx)
-    mu_1_r = source_count_moment_returner(1, S_low = 100e-3,  S_high=1)
-    mu_2_r = source_count_moment_returner(2, S_low = 100e-3, S_high=1)
+    mu_1_r = sky_moment_returner(1, s_low = 100e-3,  s_high=1)
+    mu_2_r = sky_moment_returner(2, s_low = 100e-3, s_high=1)
 
-    mu_1_m = source_count_moment_returner(1, S_low=1, S_high=10)
-    mu_2_m = source_count_moment_returner(2, S_low=1, S_high=10)
+    mu_1_m = sky_moment_returner(1, s_low=1, s_high=10)
+    mu_2_m = sky_moment_returner(2, s_low=1, s_high=10)
 
     if mode == "frequency":
         nn1, nn2, xx = numpy.meshgrid(nu, nu, x_offsets)
@@ -143,12 +143,62 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
     return variance
 
 
-def gain_error_covariance():
-    return
+def gain_error_covariance(u_range, frequency_range, residuals='both', weights=None, broken_baseline_weight=1,
+                          calibration_type = 'sky'):
+    model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1, S_high=10))
+    model_normalisation = numpy.sqrt(numpy.outer(model_variance, model_variance))
+    covariance = numpy.zeros((len(u_range), len(frequency_range), len(frequency_range)))
+
+    # Compute all residual to model ratios at different u scales
+    for u_index in range(len(u_range)):
+        if calibration_type == "sky":
+            if residuals == 'sky':
+                residual_covariance = sky_covariance(u_range[u_index], v=0, nu=frequency_range)
+            elif residuals == "beam":
+                residual_covariance = beam_covariance(u_range[u_index], v=0, nu=frequency_range, calibration_type ='sky',
+                                                      broken_tile_fraction=broken_baseline_weight)
+            elif residuals == "both":
+                residual_covariance = sky_covariance(u_range[u_index], v=0, nu=frequency_range) + \
+                                      beam_covariance(u_range[u_index], v=0, nu=frequency_range, calibration_type ='sky',
+                                                      broken_tile_fraction=broken_baseline_weight)
+            else:
+                pass
+        elif calibration_type == 'redundant':
+            if residuals == 'position':
+                residual_covariance = position_covariance(u_range[u_index], v=0, nu=frequency_range)
+            elif residuals == "beam":
+                residual_covariance = beam_covariance(u_range[u_index], v=0, nu=frequency_range,
+                                                      calibration_type ='redundant',
+                                                      broken_tile_fraction=broken_baseline_weight)
+            elif residuals == "both":
+                residual_covariance = sky_covariance(u_range[u_index], v=0, nu=frequency_range) + \
+                                      beam_covariance(u_range[u_index], v=0, nu=frequency_range,
+                                                      calibration_type='redundant',
+                                                      broken_tile_fraction=broken_baseline_weight)
+
+        covariance[u_index, :, :] = residual_covariance / model_normalisation
+
+    if weights is None:
+        gain_averaged_covariance = numpy.sum(covariance, axis=0) * (1/(127*len(u_range))) ** 2
+    else:
+        gain_averaged_covariance = covariance.copy()
+        for u_index in range(len(u_range)):
+            u_weight_reshaped = numpy.tile(weights[u_index, :].flatten(), (len(frequency_range), len(frequency_range), 1)).T
+            gain_averaged_covariance[u_index, ...] = numpy.sum(covariance * u_weight_reshaped, axis=0)
+
+    return gain_averaged_covariance
 
 
-def source_count_moment_returner(n_order, k1=4100, gamma1=1.59, k2=4100, gamma2=2.5, S_low=400e-3, S_mid=1, S_high=5.):
-    moment = k1 / (n_order + 1 - gamma1) * (S_mid ** (n_order + 1 - gamma1)) - S_low ** (n_order + 1 - gamma1) + \
-             k2 / (n_order + 1 - gamma2) * (S_high ** (n_order + 1 - gamma2)) - S_mid ** (n_order + 1 - gamma2)
+def compute_weights(u_cells, u, v):
+    u_bin_edges = numpy.zeros(len(u_cells) + 1)
+    baseline_lengths = numpy.sqrt(u**2 + v**2)
+    log_steps = numpy.diff(numpy.log10(u_cells))
+    u_bin_edges[1:] = 10**(numpy.log10(u_cells) + 0.5*log_steps[0])
+    u_bin_edges[0] = 10**(numpy.log10(u_cells[0] - 0.5*log_steps[0]))
 
-    return moment
+    counts, bin_edges = numpy.histogram(baseline_lengths, bins=u_bin_edges)
+    prime, unprime = numpy.meshgrid(counts/len(baseline_lengths), counts/len(baseline_lengths))
+
+    weights = prime*unprime*(2/127)**2
+
+    return weights
