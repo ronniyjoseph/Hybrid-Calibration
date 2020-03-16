@@ -73,3 +73,56 @@ def plot_power_spectrum(u_bins, eta_bins, nu, data, norm = None, title=None, axe
     axes.tick_params(axis='both', which='major', labelsize=tickfontsize)
 
     return norm if return_norm else None
+
+
+def plot_power_contours(u_bins, eta_bins, nu, data, norm = None, title=None, axes=None,
+                  contour_levels=None, axes_label_font=20, tickfontsize=15, xlabel_show=False, ylabel_show=False,
+                  zlabel_show=False, z_label = None, ratio = False, diff = False, x_range = None, y_range = None):
+
+    central_frequency = nu[int(len(nu) / 2)]
+    x_values = from_u_to_k_perp(u_bins, central_frequency)
+    y_values = from_eta_to_k_par(eta_bins, central_frequency)
+
+    if ratio:
+        z_values = data
+    else:
+        z_values = from_jansky_to_milikelvin(data, nu)
+
+    x_label = r"$k_{\perp}$ [$h$Mpc$^{-1}$]"
+    y_label = r"$k_{\parallel}$ [$h$Mpc$^{-1}$]"
+    
+
+    if x_range is None:
+        axes.set_xlim(9e-3, 3e-1)
+    else:
+        axes.set_xlim(x_range[0], x_range[1])
+
+    if y_range is None:
+        axes.set_ylim(9e-3, 1.2e0)
+    else:
+        axes.set_ylim(y_range[0], y_range[1])
+
+    if diff:
+        pass
+    else:
+        z_values[data < 0] = numpy.nan
+    if norm is None:
+        norm = colors.LogNorm(vmin=numpy.real(z_values).min(), vmax=numpy.real(z_values).max())
+
+    if title is not None:
+        axes.set_title(title)
+
+    xx, yy = numpy.meshgrid(x_values, y_values)
+    contourplot = axes.contour(xx, yy, z_values.T, levels = contour_levels)
+
+    axes.set_xscale('log')
+    axes.set_yscale('log')
+
+    if xlabel_show:
+        axes.set_xlabel(x_label, fontsize=axes_label_font)
+    if ylabel_show:
+        axes.set_ylabel(y_label, fontsize=axes_label_font)
+
+    axes.tick_params(axis='both', which='major', labelsize=tickfontsize)
+
+    return
