@@ -113,7 +113,8 @@ def plot_power_contours(u_bins, eta_bins, nu, data, norm = None, title=None, axe
         axes.set_title(title)
 
     xx, yy = numpy.meshgrid(x_values, y_values)
-    contourplot = axes.contour(xx, yy, z_values.T, levels = contour_levels)
+    contourplot = axes.contour(xx, yy, z_values.T, levels = contour_levels, colors='w')
+    axes.clabel(contourplot, inline=1, fontsize=10,  fmt='%d')
 
     axes.set_xscale('log')
     axes.set_yscale('log')
