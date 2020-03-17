@@ -6,6 +6,7 @@ from .radiotelescope import beam_width
 from .radiotelescope import mwa_dipole_locations
 
 from .skymodel import sky_moment_returner
+from .powerspectrum import compute_power
 
 
 def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6,
@@ -202,3 +203,53 @@ def compute_weights(u_cells, u, v):
     weights = prime*unprime*(2/127)**2
 
     return weights
+
+
+def calculate_residual_error(u, nu, residuals='both', broken_baselines_weight = 1, weights = None,
+                             calibration_type = 'sky'):
+    cal_variance = numpy.zeros((len(u), int(len(nu) / 2)))
+    raw_variance = numpy.zeros((len(u), int(len(nu) / 2)))
+
+    gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
+                                                     broken_baseline_weight = broken_baselines_weight,
+                                                     calibration_type=calibration_type)
+    for i in range(len(u)):
+        if calibration_type == "redundant":
+            if residuals == "position":
+                residual_covariance = position_covariance(u[i], 0, nu)
+                blaah = 0
+            elif residuals == "beam":
+                residual_covariance = beam_covariance(u[i], v=0, nu=nu, broken_tile_fraction=broken_baselines_weight,
+                                                      calibration_type=calibration_type)
+                blaah = 0
+            elif residuals == 'both':
+                residual_covariance = position_covariance(u[i], 0, nu) + \
+                                      beam_covariance(u[i], v=0, nu=nu, broken_tile_fraction=broken_baselines_weight,
+                                                      calibration_type=calibration_type)
+        elif calibration_type == "sky":
+            if residuals == "sky":
+                residual_covariance = position_covariance(u[i], 0, nu)
+                blaah = 0
+            elif residuals == "beam":
+                residual_covariance = beam_covariance(u[i], v=0, nu=nu, broken_tile_fraction=broken_baselines_weight,
+                                                      calibration_type=calibration_type)
+                blaah = 0
+            elif residuals == 'both':
+                residual_covariance = position_covariance(u[i], 0, nu) + \
+                                      beam_covariance(u[i], v=0, nu=nu, broken_tile_fraction=broken_baselines_weight,
+                                                      calibration_type=calibration_type)
+
+        model_covariance = sky_covariance(u[i], 0, nu, S_low=1, S_high=10)
+        sky_residuals = sky_covariance(u[i], 0, nu, S_low=1e-3, S_high=1)
+        scale = numpy.diag(numpy.zeros_like(nu)) + 1
+        if weights is None:
+            nu_cov = 2*gain_averaged_covariance*model_covariance + \
+                     (scale + 2*gain_averaged_covariance)*sky_residuals
+        else:
+            nu_cov = 2*gain_averaged_covariance[i, ...]*model_covariance + \
+                     (scale + 2*gain_averaged_covariance[i, ...])*sky_residuals
+
+        cal_variance[i, :] = compute_power(nu, nu_cov)
+        raw_variance[i, :] = compute_power(nu, residual_covariance)
+
+    return raw_variance, cal_variance
