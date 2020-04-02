@@ -54,7 +54,7 @@ def main(labelfontsize = 16, ticksize= 11):
     plot_power_contours(u_range, eta, frequency_range, from_jansky_to_milikelvin(total_calibrated, frequency_range)/eor_power_spectrum,
                         axes=axes[2], ratio=True, axes_label_font=labelfontsize, tickfontsize=ticksize, xlabel_show=True, norm=ps_norm, ylabel_show=False, contour_levels=contour_levels)
     #
-    pyplot.savefig(output_path + "Calibrated_Residuals_Redundant.pdf")
+    pyplot.savefig(output_path + "Calibrated_Residuals_Sky.pdf")
     pyplot.show()
     return
 
