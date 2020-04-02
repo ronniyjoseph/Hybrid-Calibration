@@ -144,10 +144,16 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
     return variance
 
 
+
+
+
+
 def gain_error_covariance(u_range, frequency_range, residuals='both', weights=None, broken_baseline_weight=1,
-                          calibration_type = 'sky'):
+                          calibration_type = 'sky', N_antenna = 128):
     model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1, S_high=10))
     model_normalisation = numpy.sqrt(numpy.outer(model_variance, model_variance))
+
+
     covariance = numpy.zeros((len(u_range), len(frequency_range), len(frequency_range)))
 
     # Compute all residual to model ratios at different u scales
@@ -180,7 +186,7 @@ def gain_error_covariance(u_range, frequency_range, residuals='both', weights=No
         covariance[u_index, :, :] = residual_covariance / model_normalisation
 
     if weights is None:
-        gain_averaged_covariance = numpy.sum(covariance, axis=0) * (1/(127*len(u_range))) ** 2
+        gain_averaged_covariance = numpy.sum(covariance, axis=0) * (1/((N_antenna - 1)*len(u_range))) ** 2
     else:
         gain_averaged_covariance = covariance.copy()
         for u_index in range(len(u_range)):
@@ -190,7 +196,7 @@ def gain_error_covariance(u_range, frequency_range, residuals='both', weights=No
     return gain_averaged_covariance
 
 
-def compute_weights(u_cells, u, v):
+def compute_weights(u_cells, u, v, N_antenna = 128):
     u_bin_edges = numpy.zeros(len(u_cells) + 1)
     baseline_lengths = numpy.sqrt(u**2 + v**2)
     log_steps = numpy.diff(numpy.log10(u_cells))
@@ -200,19 +206,39 @@ def compute_weights(u_cells, u, v):
     counts, bin_edges = numpy.histogram(baseline_lengths, bins=u_bin_edges)
     prime, unprime = numpy.meshgrid(counts/len(baseline_lengths), counts/len(baseline_lengths))
 
-    weights = prime*unprime*(2/127)**2
+    weights = prime*unprime*(2/(N_antenna - 1))**2
 
     return weights
 
 
 def calculate_residual_error(u, nu, residuals='both', broken_baselines_weight = 1, weights = None,
-                             calibration_type = 'sky'):
+                             calibration_type = 'sky', scale_limit = None, N_antenna = 128):
     cal_variance = numpy.zeros((len(u), int(len(nu) / 2)))
     raw_variance = numpy.zeros((len(u), int(len(nu) / 2)))
 
-    gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
+    if calibration_type == "sky":
+        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
                                                      broken_baseline_weight = broken_baselines_weight,
-                                                     calibration_type=calibration_type)
+                                                     calibration_type=calibration_type, N_antenna = N_antenna)
+    elif calibration_type == "redundant":
+        redundant_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
+                                                     broken_baseline_weight = broken_baselines_weight,
+                                                     calibration_type="redundant", N_antenna = N_antenna)
+        sky_averaged_covariance = gain_error_covariance(u, nu, residuals='sky', weights= weights,
+                                                     broken_baseline_weight = broken_baselines_weight,
+                                                     calibration_type="sky", N_antenna = N_antenna)
+
+        if weights is None:
+         gain_averaged_covariance = sky_averaged_covariance + redundant_averaged_covariance
+        else:
+
+            absolute_averaged_covariance = numpy.zeros_like(sky_averaged_covariance)
+            for i in range(sky_averaged_covariance.shape[0]):
+                absolute_averaged_covariance[i, ...] = numpy.mean(sky_averaged_covariance, axis = 0)
+
+            gain_averaged_covariance = absolute_averaged_covariance + redundant_averaged_covariance
+
+
     for i in range(len(u)):
         if calibration_type == "redundant":
             if residuals == "position":
@@ -242,6 +268,7 @@ def calculate_residual_error(u, nu, residuals='both', broken_baselines_weight = 
         model_covariance = sky_covariance(u[i], 0, nu, S_low=1, S_high=10)
         sky_residuals = sky_covariance(u[i], 0, nu, S_low=1e-3, S_high=1)
         scale = numpy.diag(numpy.zeros_like(nu)) + 1
+
         if weights is None:
             nu_cov = 2*gain_averaged_covariance*model_covariance + \
                      (scale + 2*gain_averaged_covariance)*sky_residuals
