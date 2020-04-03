@@ -41,13 +41,14 @@ def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode =
 
 
 def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0, nu_0 = 150e6,
-                    calibration_type = "sky", tile_diameter = 4):
-    x_offsets, y_offsets = mwa_dipole_locations(dx)
-    mu_1_r = sky_moment_returner(1, s_low = 100e-3,  s_high=1)
-    mu_2_r = sky_moment_returner(2, s_low = 100e-3, s_high=1)
+                    calibration_type = "sky", tile_diameter = 4, model_limit = 1):
 
-    mu_1_m = sky_moment_returner(1, s_low=1, s_high=10)
-    mu_2_m = sky_moment_returner(2, s_low=1, s_high=10)
+    x_offsets, y_offsets = mwa_dipole_locations(dx)
+    mu_1_r = sky_moment_returner(1, s_low = 100e-3,  s_high=model_limit)
+    mu_2_r = sky_moment_returner(2, s_low = 100e-3, s_high=model_limit)
+
+    mu_1_m = sky_moment_returner(1, s_low=model_limit, s_high=10)
+    mu_2_m = sky_moment_returner(2, s_low=model_limit, s_high=10)
 
     if mode == "frequency":
         nn1, nn2, xx = numpy.meshgrid(nu, nu, x_offsets)
@@ -148,7 +149,12 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
 
 def gain_error_covariance(u_range, frequency_range, residuals='both', weights=None, broken_baseline_weight=1,
                           calibration_type = 'sky', N_antenna = 128, tile_diameter = 4, position_error = 0.02):
-    model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1, S_high=10, tile_diameter=tile_diameter))
+
+    if calibration_type == "sky":
+        model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1, S_high=10, tile_diameter=tile_diameter))
+    else:
+        model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1e-3, S_high=10, tile_diameter=tile_diameter))
+
     model_normalisation = numpy.sqrt(numpy.outer(model_variance, model_variance))
 
 
@@ -276,33 +282,34 @@ def calibrated_residual_error(u, nu, residuals='both', broken_baselines_weight =
     cal_variance = numpy.zeros((len(u), int(len(nu) / 2)))
 
     if calibration_type == "sky":
-        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
-                                                     broken_baseline_weight = broken_baselines_weight,
-                                                     calibration_type=calibration_type, N_antenna = N_antenna,
+        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, calibration_type=calibration_type,
+                                                         weights= weights, N_antenna = N_antenna,
+                                                         broken_baseline_weight = broken_baselines_weight,
                                                          tile_diameter=tile_diameter)
 
     elif calibration_type == "relative":
-        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights=weights,
-                                                              broken_baseline_weight=broken_baselines_weight,
-                                                              calibration_type="relative", N_antenna=N_antenna,
+        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, calibration_type="relative",
+                                                         weights=weights, N_antenna=N_antenna,
+                                                         broken_baseline_weight=broken_baselines_weight,
                                                          tile_diameter=tile_diameter, position_error=position_error)
 
     elif calibration_type == "absolute":
-        sky_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights=weights,
-                                                         broken_baseline_weight=broken_baselines_weight,
-                                                         calibration_type='sky', N_antenna=N_antenna,
+        sky_averaged_covariance = gain_error_covariance(u, nu, residuals='both', calibration_type='sky',
+                                                        weights=weights, N_antenna=N_antenna,
+                                                        broken_baseline_weight=broken_baselines_weight,
                                                         tile_diameter=tile_diameter)
+
         gain_averaged_covariance = calculcate_absolute_calibration(sky_averaged_covariance, weights)
 
     elif calibration_type == "redundant":
-        relative_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
-                                                     broken_baseline_weight = broken_baselines_weight,
-                                                     calibration_type="relative", N_antenna = N_antenna,
+        relative_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, calibration_type="relative",
+                                                             weights=weights, N_antenna = N_antenna,
+                                                             broken_baseline_weight = broken_baselines_weight,
                                                              tile_diameter=tile_diameter, position_error=position_error)
 
-        sky_averaged_covariance = gain_error_covariance(u, nu, residuals='both', weights= weights,
-                                                     broken_baseline_weight = broken_baselines_weight,
-                                                     calibration_type="sky", N_antenna = N_antenna,
+        sky_averaged_covariance = gain_error_covariance(u, nu, residuals='both', calibration_type='sky',
+                                                        weights=weights, N_antenna=N_antenna,
+                                                        broken_baseline_weight=broken_baselines_weight,
                                                         tile_diameter=tile_diameter)
 
         absolute_averaged_covariance = calculcate_absolute_calibration(sky_averaged_covariance, weights)
