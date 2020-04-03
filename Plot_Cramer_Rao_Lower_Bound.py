@@ -23,7 +23,7 @@ def main():
     hera_350_skymodel = numpy.loadtxt(skymodel_current_path + "hera_350_skymodel.txt")
     ska_low_skymodel = numpy.loadtxt(skymodel_current_path + "ska_low_skymodel.txt")
 
-    fig, axes = pyplot.subplots(1, 3, figsize=(15, 5))
+    fig, axes = pyplot.subplots(3, 1, figsize=(5, 15))
 
     # Plot Redundant Calibration Data
     axes[0].plot(data_redundant[0, :], numpy.sqrt(data_redundant[1, :] + data_redundant[2, :]), 'C0',
