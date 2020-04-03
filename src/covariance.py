@@ -145,9 +145,6 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
 
 
 
-
-
-
 def gain_error_covariance(u_range, frequency_range, residuals='both', weights=None, broken_baseline_weight=1,
                           calibration_type = 'sky', N_antenna = 128):
     model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1, S_high=10))
@@ -170,7 +167,7 @@ def gain_error_covariance(u_range, frequency_range, residuals='both', weights=No
                                                       broken_tile_fraction=broken_baseline_weight)
             else:
                 pass
-        elif calibration_type == 'redundant':
+        elif calibration_type == 'relative':
             if residuals == 'position':
                 residual_covariance = position_covariance(u_range[u_index], v=0, nu=frequency_range)
             elif residuals == "beam":
@@ -182,6 +179,8 @@ def gain_error_covariance(u_range, frequency_range, residuals='both', weights=No
                                       beam_covariance(u_range[u_index], v=0, nu=frequency_range,
                                                       calibration_type='redundant',
                                                       broken_tile_fraction=broken_baseline_weight)
+
+
 
         covariance[u_index, :, :] = residual_covariance / model_normalisation
 
@@ -211,33 +210,20 @@ def compute_weights(u_cells, u, v, N_antenna = 128):
     return weights
 
 
-def calculate_residual_error(u, nu, residuals='both', broken_baselines_weight = 1, weights = None,
-                             calibration_type = 'sky', scale_limit = None, N_antenna = 128):
-    cal_variance = numpy.zeros((len(u), int(len(nu) / 2)))
+def calculcate_absolute_calibration(sky_averaged_covariance, weights):
+    if weights is None:
+        absolute_averaged_covariance = sky_averaged_covariance/127
+    else:
+
+        absolute_averaged_covariance = numpy.zeros_like(sky_averaged_covariance)
+        for i in range(sky_averaged_covariance.shape[0]):
+            absolute_averaged_covariance[i, ...] = numpy.mean(sky_averaged_covariance, axis=0)/127
+
+    return absolute_averaged_covariance
+
+
+def uncalibrated_residual_error():
     raw_variance = numpy.zeros((len(u), int(len(nu) / 2)))
-
-    if calibration_type == "sky":
-        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
-                                                     broken_baseline_weight = broken_baselines_weight,
-                                                     calibration_type=calibration_type, N_antenna = N_antenna)
-    elif calibration_type == "redundant":
-        redundant_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
-                                                     broken_baseline_weight = broken_baselines_weight,
-                                                     calibration_type="redundant", N_antenna = N_antenna)
-        sky_averaged_covariance = gain_error_covariance(u, nu, residuals='sky', weights= weights,
-                                                     broken_baseline_weight = broken_baselines_weight,
-                                                     calibration_type="sky", N_antenna = N_antenna)
-
-        if weights is None:
-         gain_averaged_covariance = sky_averaged_covariance + redundant_averaged_covariance
-        else:
-
-            absolute_averaged_covariance = numpy.zeros_like(sky_averaged_covariance)
-            for i in range(sky_averaged_covariance.shape[0]):
-                absolute_averaged_covariance[i, ...] = numpy.mean(sky_averaged_covariance, axis = 0)
-
-            gain_averaged_covariance = absolute_averaged_covariance + redundant_averaged_covariance
-
 
     for i in range(len(u)):
         if calibration_type == "redundant":
@@ -264,7 +250,44 @@ def calculate_residual_error(u, nu, residuals='both', broken_baselines_weight = 
                 residual_covariance = position_covariance(u[i], 0, nu) + \
                                       beam_covariance(u[i], v=0, nu=nu, broken_tile_fraction=broken_baselines_weight,
                                                       calibration_type=calibration_type)
+    raw_variance[i, :] = compute_power(nu, residual_covariance)
 
+    return raw_variance,
+
+
+def calibrated_residual_error(u, nu, residuals='both', broken_baselines_weight = 1, weights = None,
+                             calibration_type = 'sky', scale_limit = None, N_antenna = 128):
+    cal_variance = numpy.zeros((len(u), int(len(nu) / 2)))
+
+    if calibration_type == "sky":
+        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
+                                                     broken_baseline_weight = broken_baselines_weight,
+                                                     calibration_type=calibration_type, N_antenna = N_antenna)
+
+    elif calibration_type == "relative":
+        gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights=weights,
+                                                              broken_baseline_weight=broken_baselines_weight,
+                                                              calibration_type="redundant", N_antenna=N_antenna)
+
+    elif calibration_type == "absolute":
+        sky_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights=weights,
+                                                         broken_baseline_weight=broken_baselines_weight,
+                                                         calibration_type='sky', N_antenna=N_antenna)
+        gain_averaged_covariance = calculcate_absolute_calibration(sky_averaged_covariance, weights)
+
+    elif calibration_type == "redundant":
+        relative_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
+                                                     broken_baseline_weight = broken_baselines_weight,
+                                                     calibration_type="redundant", N_antenna = N_antenna)
+        sky_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, weights= weights,
+                                                     broken_baseline_weight = broken_baselines_weight,
+                                                     calibration_type="sky", N_antenna = N_antenna)
+        absolute_averaged_covariance = calculcate_absolute_calibration(sky_averaged_covariance, weights)
+
+        gain_averaged_covariance = absolute_averaged_covariance + relative_averaged_covariance
+
+
+    for i in range(len(u)):
         model_covariance = sky_covariance(u[i], 0, nu, S_low=1, S_high=10)
         sky_residuals = sky_covariance(u[i], 0, nu, S_low=1e-3, S_high=1)
         scale = numpy.diag(numpy.zeros_like(nu)) + 1
@@ -277,6 +300,5 @@ def calculate_residual_error(u, nu, residuals='both', broken_baselines_weight = 
                      (scale + 2*gain_averaged_covariance[i, ...])*sky_residuals
 
         cal_variance[i, :] = compute_power(nu, nu_cov)
-        raw_variance[i, :] = compute_power(nu, residual_covariance)
 
-    return raw_variance, cal_variance
+    return cal_variance
