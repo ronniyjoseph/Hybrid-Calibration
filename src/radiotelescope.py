@@ -210,13 +210,13 @@ class BaselineTable:
         return
 
 
-def beam_width(frequency =150e6, diameter=4, epsilon=1):
+def beam_width(frequency =150e6, diameter=4, epsilon=0.45):
     sigma = epsilon * c / (frequency * diameter)
     width = numpy.sin(0.5 * sigma)
     return width
 
 
-def ideal_gaussian_beam(source_l, source_m, nu, diameter=4, epsilon=1):
+def ideal_gaussian_beam(source_l, source_m, nu, diameter=4, epsilon=0.45):
     sigma = beam_width(nu, diameter, epsilon)
 
     beam_attenuation = numpy.exp(-(source_l ** 2. + source_m ** 2.) / (2 * sigma ** 2))
@@ -224,7 +224,7 @@ def ideal_gaussian_beam(source_l, source_m, nu, diameter=4, epsilon=1):
     return beam_attenuation
 
 
-def broken_gaussian_beam(source_l, source_m, nu, faulty_dipole, diameter=4, epsilon=1, dx=1.1):
+def broken_gaussian_beam(source_l, source_m, nu, faulty_dipole, diameter=4, epsilon=0.42, dx=1.1):
     wavelength = c / nu
     x_offsets, y_offsets = mwa_dipole_locations(dx)
 
