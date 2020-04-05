@@ -13,7 +13,6 @@ def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode =
                         tile_diameter = 4, s_high = 10):
     mu_1 = sky_moment_returner(n_order = 1, s_high= s_high)
     mu_2 = sky_moment_returner(n_order = 2, s_high= s_high)
-
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
         vv1 = v
@@ -36,6 +35,7 @@ def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode =
     kernel = -2*numpy.pi**2*sigma*((uu1*nn1 - uu2*nn2)**2 + (vv1*nn1 - vv2*nn2)**2 )/nu_0**2
     a = 16*numpy.pi**3*mu_2*(nn1*nn2/nu_0**2)**(1-gamma)*delta_u**2*sigma*numpy.exp(kernel)*(1+2*kernel)
     b = mu_1**2*(nn1*nn2)**(-gamma)*delta_u**2
+
     covariance = a
     return covariance
 
@@ -99,6 +99,7 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     covariance_c = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
         numpy.sum(sigma_c * numpy.exp(sigma_c *kernel),axis=-1)
 
+
     covariance_d = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_1_m + mu_1_r)**2 * \
         numpy.sum( sigma_d1 * sigma_d2 / len(x_offsets) ** 3 * \
         numpy.exp(sigma_d1 * kernel)* numpy.exp(sigma_d2 * kernel), axis=-1)
@@ -115,8 +116,9 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     return covariance
 
 
-def sky_covariance(u, v, nu, S_low=1e-5, S_mid=1, S_high=1, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
+def sky_covariance(u, v, nu, S_low=1e-5, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
                    tile_diameter=4):
+
     mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)
     if mode == "frequency":
         nn1, nn2 = numpy.meshgrid(nu, nu)
@@ -134,6 +136,7 @@ def sky_covariance(u, v, nu, S_low=1e-5, S_mid=1, S_high=1, gamma=0.8, mode = 'f
     width_tile2 = beam_width(nn2, diameter=tile_diameter)
     sigma_nu = width_tile1**2*width_tile2**2/(width_tile1**2 + width_tile2**2)
 
+
     kernel = -2*numpy.pi ** 2 * sigma_nu * ((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
     covariance = 2 * numpy.pi * mu_2 * sigma_nu * (nn1*nn2/nu_0**2)**(-gamma)*numpy.exp(kernel)
 
@@ -148,12 +151,15 @@ def thermal_variance(sefd=20e3, bandwidth=40e3, t_integrate=120):
 
 
 def gain_error_covariance(u_range, frequency_range, residuals='both', weights=None, broken_baseline_weight=1,
-                          calibration_type = 'sky', N_antenna = 128, tile_diameter = 4, position_error = 0.02):
+                          calibration_type = 'sky', N_antenna = 128, tile_diameter = 4, position_error = 0.02,
+                          model_limit=1):
 
     if calibration_type == "sky":
-        model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1, S_high=10, tile_diameter=tile_diameter))
-    else:
-        model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1e-3, S_high=10, tile_diameter=tile_diameter))
+        model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=model_limit, S_high=10,
+                                                   tile_diameter=tile_diameter))
+    elif calibration_type == 'relative':
+        model_variance = numpy.diag(sky_covariance(0, 0, frequency_range, S_low=1e-3, S_high=10,
+                                                   tile_diameter=tile_diameter))
 
     model_normalisation = numpy.sqrt(numpy.outer(model_variance, model_variance))
 
@@ -164,18 +170,18 @@ def gain_error_covariance(u_range, frequency_range, residuals='both', weights=No
     for u_index in range(len(u_range)):
         if calibration_type == "sky":
             if residuals == 'sky':
-                residual_covariance = sky_covariance(u_range[u_index], v=0, nu=frequency_range,
+                residual_covariance = sky_covariance(u_range[u_index], v=0, nu=frequency_range, S_high=model_limit,
                                                      tile_diameter=tile_diameter)
             elif residuals == "beam":
                 residual_covariance = beam_covariance(u_range[u_index], v=0, nu=frequency_range, calibration_type ='sky',
                                                       broken_tile_fraction=broken_baseline_weight,
-                                                      tile_diameter=tile_diameter)
+                                                      tile_diameter=tile_diameter, model_limit=model_limit)
             elif residuals == "both":
                 residual_covariance = sky_covariance(u_range[u_index], v=0, nu=frequency_range,
-                                                     tile_diameter=tile_diameter) + \
+                                                     tile_diameter=tile_diameter, S_high=model_limit) + \
                                       beam_covariance(u_range[u_index], v=0, nu=frequency_range, calibration_type ='sky',
                                                       broken_tile_fraction=broken_baseline_weight,
-                                                      tile_diameter=tile_diameter)
+                                                      tile_diameter=tile_diameter, model_limit=model_limit)
             else:
                 raise ValueError(f"{residuals} is an invalid residual option for calibration type {calibration_type}")
         elif calibration_type == 'relative':
@@ -278,14 +284,14 @@ def calculcate_absolute_calibration(sky_averaged_covariance, weights):
 
 def calibrated_residual_error(u, nu, residuals='both', broken_baselines_weight = 1, weights = None,
                              calibration_type = 'sky', scale_limit = None, N_antenna = 128, tile_diameter=4,
-                              position_error = 0.02):
+                              position_error = 0.02, model_limit=1):
     cal_variance = numpy.zeros((len(u), int(len(nu) / 2)))
 
     if calibration_type == "sky":
         gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, calibration_type=calibration_type,
                                                          weights= weights, N_antenna = N_antenna,
                                                          broken_baseline_weight = broken_baselines_weight,
-                                                         tile_diameter=tile_diameter)
+                                                         tile_diameter=tile_diameter, model_limit=model_limit)
 
     elif calibration_type == "relative":
         gain_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, calibration_type="relative",
@@ -297,7 +303,7 @@ def calibrated_residual_error(u, nu, residuals='both', broken_baselines_weight =
         sky_averaged_covariance = gain_error_covariance(u, nu, residuals='both', calibration_type='sky',
                                                         weights=weights, N_antenna=N_antenna,
                                                         broken_baseline_weight=broken_baselines_weight,
-                                                        tile_diameter=tile_diameter)
+                                                        tile_diameter=tile_diameter, model_limit=model_limit)
 
         gain_averaged_covariance = calculcate_absolute_calibration(sky_averaged_covariance, weights)
 
@@ -310,7 +316,7 @@ def calibrated_residual_error(u, nu, residuals='both', broken_baselines_weight =
         sky_averaged_covariance = gain_error_covariance(u, nu, residuals='both', calibration_type='sky',
                                                         weights=weights, N_antenna=N_antenna,
                                                         broken_baseline_weight=broken_baselines_weight,
-                                                        tile_diameter=tile_diameter)
+                                                        tile_diameter=tile_diameter, model_limit=model_limit)
 
         absolute_averaged_covariance = calculcate_absolute_calibration(sky_averaged_covariance, weights)
 
@@ -318,8 +324,8 @@ def calibrated_residual_error(u, nu, residuals='both', broken_baselines_weight =
 
 
     for i in range(len(u)):
-        model_covariance = sky_covariance(u[i], 0, nu, S_low=1, S_high=10, tile_diameter=tile_diameter)
-        sky_residuals = sky_covariance(u[i], 0, nu, S_low=1e-3, S_high=1, tile_diameter=tile_diameter)
+        model_covariance = sky_covariance(u[i], 0, nu, S_low=model_limit, S_high=10, tile_diameter=tile_diameter)
+        sky_residuals = sky_covariance(u[i], 0, nu, S_low=1e-3, S_high=model_limit, tile_diameter=tile_diameter)
         scale = numpy.diag(numpy.zeros_like(nu)) + 1
 
         if weights is None:
