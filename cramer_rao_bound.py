@@ -250,7 +250,7 @@ def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2,broke
     non_redundant_block = sky_covariance(nu=nu, u=uv_scales, v=uv_scales, S_high=sky_model_depth,
                                          mode='baseline')
     beam_block_covariance = beam_covariance(nu=nu, u=uv_scales, v=uv_scales, broken_tile_fraction=broken_tile_fraction,
-                                            mode='baseline', calibration_type='sky')
+                                            mode='baseline', calibration_type='sky', model_limit=sky_model_depth)
     non_redundant_block += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance() + beam_block_covariance[0, 0])
 
     if redundant_baselines.number_of_baselines < 3000:
