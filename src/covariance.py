@@ -43,9 +43,10 @@ def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode =
 def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_tile_fraction = 1.0, nu_0 = 150e6,
                     calibration_type = "sky", tile_diameter = 4, model_limit = 1):
 
+
     x_offsets, y_offsets = mwa_dipole_locations(dx)
-    mu_1_r = sky_moment_returner(1, s_low = 100e-3,  s_high=model_limit)
-    mu_2_r = sky_moment_returner(2, s_low = 100e-3, s_high=model_limit)
+    mu_1_r = sky_moment_returner(1, s_low = 1e-5,  s_high=model_limit)
+    mu_2_r = sky_moment_returner(2, s_low = 1e-5, s_high=model_limit)
 
     mu_1_m = sky_moment_returner(1, s_low=model_limit, s_high=10)
     mu_2_m = sky_moment_returner(2, s_low=model_limit, s_high=10)
@@ -98,7 +99,6 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
 
     covariance_c = -2 * numpy.pi *frequency_scaling**(-gamma)* mu_2_r / len(y_offsets) ** 2 * \
         numpy.sum(sigma_c * numpy.exp(sigma_c *kernel),axis=-1)
-
 
     covariance_d = 2 * numpy.pi *frequency_scaling**(-gamma)* (mu_1_m + mu_1_r)**2 * \
         numpy.sum( sigma_d1 * sigma_d2 / len(x_offsets) ** 3 * \
