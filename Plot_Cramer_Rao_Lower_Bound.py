@@ -2,7 +2,7 @@ import argparse
 import numpy
 
 
-def main(plot_telescopes = False):
+def main(plot_telescopes = False, axes_label_font = 20, tickfontsize=15 ):
     output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy_TEST/"
     # Set all relevant data paths
     redundant_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy_TEST/"
@@ -25,7 +25,7 @@ def main(plot_telescopes = False):
         hera_350_skymodel = numpy.loadtxt(skymodel_current_path + "hera_350_skymodel.txt")
         ska_low_skymodel = numpy.loadtxt(skymodel_current_path + "ska_low_skymodel.txt")
 
-    fig, axes = pyplot.subplots(3, 1, figsize=(5, 15))
+    fig, axes = pyplot.subplots(1, 3, figsize=(15, 5))
 
     # Plot Redundant Calibration Data
     axes[0].plot(data_redundant[0, :], numpy.sqrt(data_redundant[1, :] + data_redundant[2, :]), 'C0',
@@ -60,18 +60,20 @@ def main(plot_telescopes = False):
     axes[2].plot(data_sky_model[0, :], numpy.sqrt(data_sky_model[1, :]),color = "C1", label="Sky Based 100 mJy")
     axes[2].plot(data_sky_model_deep[0, :], numpy.sqrt(data_sky_model_deep[1, :]), color = "C2", label="Sky Based 10 mJy")
 
-    axes[0].set_ylabel("Gain Error")
+    axes[0].set_ylabel("Gain Error", fontsize=axes_label_font)
+
+
     axes[0].set_yscale('log')
     axes[1].set_yscale('log')
     axes[2].set_yscale('log')
 
-    axes[0].set_xlabel("Number of Antennas")
-    axes[1].set_xlabel("Number of Antennas")
-    axes[2].set_xlabel("Number of Antennas")
+    axes[0].set_xlabel("Number of Antennas", fontsize=axes_label_font)
+    axes[1].set_xlabel("Number of Antennas", fontsize=axes_label_font)
+    axes[2].set_xlabel("Number of Antennas", fontsize=axes_label_font)
 
-    axes[0].set_ylim([1e-4, 1])
-    axes[1].set_ylim([1e-4, 1])
-    axes[2].set_ylim([1e-4, 1])
+    axes[0].set_ylim([1e-3, 1])
+    axes[1].set_ylim([1e-3, 1])
+    axes[2].set_ylim([1e-3, 1])
 
     axes[0].legend()
     axes[1].legend()
@@ -80,6 +82,12 @@ def main(plot_telescopes = False):
     axes[0].set_title("Redundant Calibration")
     axes[1].set_title("Sky Based Calibration")
     axes[2].set_title("Comparison")
+
+    axes[0].tick_params(axis='both', which='major', labelsize=tickfontsize)
+    axes[1].tick_params(axis='both', which='major', labelsize=tickfontsize)
+    axes[2].tick_params(axis='both', which='major', labelsize=tickfontsize)
+
+    pyplot.tight_layout()
     fig.savefig(output_path + "Calibration_FIM.pdf", transparent = True)
     return
 
