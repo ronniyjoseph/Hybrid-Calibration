@@ -15,8 +15,9 @@ from src.covariance import position_covariance
 from src.covariance import thermal_variance
 from src.skymodel import sky_moment_returner
 
+# from matplotlib import pyplot
 
-def cramer_rao_bound_comparison(maximum_factor=20, nu=150e6, verbose=True, compute_data=False, compute_telescopes=True,
+def cramer_rao_bound_comparison(maximum_factor=20, nu=150e6, verbose=True, compute_data=True, compute_telescopes=True,
                                 load_data=False, save_output=True, make_plot=False, show_plot=True):
     """
 
@@ -48,8 +49,8 @@ def cramer_rao_bound_comparison(maximum_factor=20, nu=150e6, verbose=True, compu
 
     position_precision = 1e-2
     broken_tile_fraction = 0.3
-    sky_model_limit = 1e-1
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
+    sky_model_limit = 1e-2
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_10mJy/"
     if not os.path.exists(output_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path)
@@ -281,19 +282,19 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
 
     # Compute a 2x2 covariance block
     uv_scales = numpy.array([0, position_precision/c*nu*150])
-    sky_block_covariance = sky_covariance(nu, u=numpy.array([0,0]), v=numpy.array([0,0]), mode='baseline')
-    beam_block_covariance = beam_covariance(nu, u=uv_scales, v=uv_scales, broken_tile_fraction=broken_tile_fraction,
+    sky_block_covariance = sky_covariance(u=numpy.array([0,0]), v=numpy.array([0,0]), nu=nu, mode='baseline')
+    beam_block_covariance = beam_covariance(nu=nu, u=uv_scales, v=uv_scales, broken_tile_fraction=broken_tile_fraction,
                                                mode='baseline')
-    position_block_covariance = position_covariance(nu, u=uv_scales, v=uv_scales, position_precision=position_precision,
+    position_block_covariance = position_covariance(nu=nu, u=uv_scales, v=uv_scales, position_precision=position_precision,
                                                    mode='baseline')
     non_redundant_block =  sky_block_covariance +  numpy.diag(numpy.zeros(len(uv_scales)) + beam_block_covariance[0,0]) + \
                            numpy.diag(numpy.zeros(len(uv_scales)) + position_block_covariance[0, 0]) + \
                            numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
     if redundant_baselines.number_of_baselines < 2000:
-        sky_noise = sky_covariance(nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu), mode='baseline')
-        beam_error = beam_covariance(nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
+        sky_noise = sky_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu), mode='baseline')
+        beam_error = beam_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
                                      broken_tile_fraction=broken_tile_fraction, mode='baseline')
-        position_error = position_covariance(nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
+        position_error = position_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
                                              position_precision=position_precision, mode='baseline')
         thermal_noise = numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
         ideal_covariance = sky_noise + position_error + beam_error + thermal_noise
@@ -369,7 +370,7 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
     non_redundant_covariance += numpy.diag(numpy.zeros(len(uv_scales)) + thermal_variance())
     jacobian_matrix = antenna_baseline_matrix[:, :len(red_tiles)] * sky_based_model
     if redundant_baselines.number_of_baselines < 5000:
-        ideal_covariance = sky_covariance(nu, u = redundant_baselines.u(nu), v = redundant_baselines.v(nu),
+        ideal_covariance = sky_covariance(nu=nu, u = redundant_baselines.u(nu), v = redundant_baselines.v(nu),
                                           S_high=sky_model_depth, mode = 'baseline')
         ideal_covariance += numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
         sky_crlb = small_matrix(jacobian_matrix, non_redundant_covariance, ideal_covariance)
@@ -399,6 +400,7 @@ def small_matrix(jacobian, non_redundant_covariance, ideal_covariance, covarianc
                                                     covariance_jacobian=covariance_jacobian,
                                                     antennas_indices=antennas_indices, redundant_groups=redundant_groups,
                                                     redundant_baselines=redundant_baselines)
+
 
     cramer_rao_lower_bound = compute_cramer_rao_lower_bound(fisher_information)
 
@@ -448,6 +450,7 @@ def large_matrix(redundant_baselines, jacobian_matrix, non_redundant_covariance,
                                                     antennas_indices, redundant_groups, redundant_baselines,
                                                     block_index=group_index)
 
+
     cramer_rao_lower_bound = compute_cramer_rao_lower_bound(fisher_information)
 
     return cramer_rao_lower_bound
@@ -480,6 +483,8 @@ def compute_fisher_information(covariance_matrix, jacobian, covariance_jacobian 
                 jacobi_covariance = numpy.linalg.solve(covariance_matrix, covariance_derivative)
                 fisher_information[n_antennas + i, n_antennas + i] += numpy.trace(numpy.dot(jacobi_covariance,
                                                                                             jacobi_covariance))
+
+
     return fisher_information
 
 
@@ -609,7 +614,6 @@ def telescope_bounds(position_path, bound_type="redundant", nu=150e6, position_p
                                                   sky_model_depth=sky_model_depth)
         crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(redundant_crlb)), absolute_crlb])
     elif bound_type == "sky":
-        print(pyplot.get_backend())
         redundant_table = redundant_baseline_finder(telescope.baseline_table, group_minimum=1)
         sky_crlb = sky_calibration_crlb(redundant_table, sky_model_depth=sky_model_depth)
         crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(sky_crlb))])
