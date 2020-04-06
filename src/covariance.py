@@ -224,10 +224,8 @@ def compute_weights(u_cells, u, v, N_antenna = 128):
     u_bin_edges[1:] = 10**(numpy.log10(u_cells) + 0.5*log_steps[0])
     u_bin_edges[0] = 10**(numpy.log10(u_cells[0] - 0.5*log_steps[0]))
 
-    counts, bin_edges = numpy.histogram(baseline_lengths, bins=u_bin_edges)
-    prime, unprime = numpy.meshgrid(counts, counts)
-
-    weights = (unprime*prime)#(2/(N_antenna - 1))**2*(prime + unprime + numpy.diag(numpy.zeros(len(counts)) + counts))**2
+    prime, unprime = numpy.meshgrid(counts / len(baseline_lengths), counts / len(baseline_lengths))
+    weights = prime * unprime * (2 / (N_antenna - 1)) ** 2
     pyplot.imshow(weights.T, origin='lower')
     pyplot.show()
     return weights
