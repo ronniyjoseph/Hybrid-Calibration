@@ -12,7 +12,7 @@ from src.generaltools import from_jansky_to_milikelvin
 from src.covariance import calibrated_residual_error
 
 
-def main(labelfontsize = 16, ticksize= 11):
+def main(labelfontsize = 20, ticksize= 15):
     output_path = "./"#""/data/rjoseph/Hybrid_Calibration/theoretical_calculations/power_spectra/"
     k_perp_range = numpy.array([1e-4, 1.1e-1])
     u_range = numpy.logspace(-1, numpy.log10(500), 100)
