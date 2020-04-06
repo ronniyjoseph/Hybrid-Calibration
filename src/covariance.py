@@ -7,7 +7,7 @@ from .radiotelescope import mwa_dipole_locations
 
 from .skymodel import sky_moment_returner
 from .powerspectrum import compute_power
-
+from matplotlib import pyplot
 
 def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6,
                         tile_diameter = 4, s_high = 10):
@@ -225,10 +225,11 @@ def compute_weights(u_cells, u, v, N_antenna = 128):
     u_bin_edges[0] = 10**(numpy.log10(u_cells[0] - 0.5*log_steps[0]))
 
     counts, bin_edges = numpy.histogram(baseline_lengths, bins=u_bin_edges)
-    prime, unprime = numpy.meshgrid(counts/len(baseline_lengths), counts/len(baseline_lengths))
+    prime, unprime = numpy.meshgrid(counts, counts)
 
-    weights = prime*unprime*(2/(N_antenna - 1))**2
-
+    weights = (unprime*prime)#(2/(N_antenna - 1))**2*(prime + unprime + numpy.diag(numpy.zeros(len(counts)) + counts))**2
+    pyplot.imshow(weights.T, origin='lower')
+    pyplot.show()
     return weights
 
 
