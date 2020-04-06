@@ -50,8 +50,8 @@ def cramer_rao_bound_comparison(maximum_factor=20, nu=150e6, verbose=True, compu
 
     position_precision = 1e-2
     broken_tile_fraction = 0.3
-    sky_model_limit = 1e-2
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_10mJy/"
+    sky_model_limit = 1e-1
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
     if not os.path.exists(output_path + "/"):
         print("Creating Project folder at output destination!")
         os.makedirs(output_path)
@@ -71,23 +71,49 @@ def cramer_rao_bound_comparison(maximum_factor=20, nu=150e6, verbose=True, compu
     if compute_telescopes:
         print("Redundant Calibration Errors")
         print("HERA 350")
-        hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant")
+        hera_350_redundant = telescope_bounds("data/HERA_350.txt", bound_type="redundant",
+                                              position_precision=position_precision,
+                                              broken_tile_fraction=broken_tile_fraction,
+                                              sky_model_depth=sky_model_limit)
         print("HERA 128")
-        hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant")
+        hera_128_redundant = telescope_bounds("data/HERA_128.txt", bound_type="redundant",
+                                              position_precision=position_precision,
+                                              broken_tile_fraction=broken_tile_fraction,
+                                              sky_model_depth=sky_model_limit)
+        print("HERA 128")
         print("MWA Hexes")
-        mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant")
-
+        mwa_hexes_redundant = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="redundant",
+                                              position_precision=position_precision,
+                                              broken_tile_fraction=broken_tile_fraction,
+                                              sky_model_depth=sky_model_limit)
+        print("HERA 128")
 
         print("")
         print("Sky Model")
         print("MWA Hexes")
-        mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
+        mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky",
+                                              position_precision=position_precision,
+                                              broken_tile_fraction=broken_tile_fraction,
+                                              sky_model_depth=sky_model_limit)
+        print("HERA 128")
         print("MWA Compact")
-        mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky")
+        mwa_compact_sky = telescope_bounds("data/MWA_Compact_Coordinates.txt", bound_type="sky",
+                                              position_precision=position_precision,
+                                              broken_tile_fraction=broken_tile_fraction,
+                                              sky_model_depth=sky_model_limit)
+        print("HERA 128")
         print("MWA Compact")
-        hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky")
+        hera_350_sky = telescope_bounds("data/HERA_350.txt", bound_type="sky",
+                                              position_precision=position_precision,
+                                              broken_tile_fraction=broken_tile_fraction,
+                                              sky_model_depth=sky_model_limit)
+        print("HERA 128")
         print('SKA')
-        ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky")
+        ska_low_sky = telescope_bounds("data/SKA_Low_v5_ENU_fullcore.txt", bound_type="sky",
+                                              position_precision=position_precision,
+                                              broken_tile_fraction=broken_tile_fraction,
+                                              sky_model_depth=sky_model_limit)
+        print("HERA 128")
 
         if save_output:
             numpy.savetxt(output_path + "hera_350_redundant.txt", hera_350_redundant)
@@ -219,7 +245,7 @@ def thermal_redundant_crlb(redundant_baselines, nu=150e6, SEFD=20e3, B=40e3, t=1
     return redundant_crlb[:len(red_tiles), :len(red_tiles)]
 
 
-def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2,broken_tile_fraction = 1, sky_model_depth=1.0, nu=150e6,
+def absolute_calibration_crlb(redundant_baselines, position_precision=1e-2, broken_tile_fraction = 1, sky_model_depth=1.0, nu=150e6,
                               verbose=True):
     """
 
@@ -295,7 +321,6 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
 
     # Compute a 2x2 covariance block
     uv_scales = numpy.array([0, position_precision/c*nu*150])
-    sky_block_covariance = sky_covariance(u=numpy.array([0,0]), v=numpy.array([0,0]), nu=nu, mode='baseline')
     beam_block_covariance = beam_covariance(nu=nu, u=uv_scales, v=uv_scales, broken_tile_fraction=broken_tile_fraction,
                                                mode='baseline', calibration_type='redundant')
     position_block_covariance = position_covariance(nu=nu, u=uv_scales, v=uv_scales, position_precision=position_precision,
@@ -309,12 +334,6 @@ def relative_calibration_crlb(redundant_baselines, nu=150e6, position_precision=
 
     if redundant_baselines.number_of_baselines < 2000:
         sky_noise = sky_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu), mode='baseline')
-        beam_error = beam_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
-                                     broken_tile_fraction=broken_tile_fraction, mode='baseline', calibration_type='redundant')
-        position_error = position_covariance(nu=nu, u=redundant_baselines.u(nu), v=redundant_baselines.v(nu),
-                                             position_precision=position_precision, mode='baseline')
-        thermal_noise = numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) + thermal_variance())
-        ideal_covariance = sky_noise + position_error + beam_error + thermal_noise
 
         ideal_covariance = numpy.diag(numpy.zeros(redundant_baselines.number_of_baselines) +
                                       beam_block_covariance[0, 0] + position_block_covariance[0, 0] +
@@ -395,7 +414,6 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
                                      S_low=sky_model_depth)
     sky_based_model = numpy.sqrt(model_covariance[0,0])
 
-
     antenna_baseline_matrix, red_tiles = sky_model_matrix_populator(redundant_baselines)
 
     uv_scales = numpy.array([0, position_precision / c * nu])
@@ -406,6 +424,10 @@ def sky_calibration_crlb(redundant_baselines, nu=150e6, position_precision=1e-2,
                                                                    # + thermal_variance()
     jacobian_matrix = antenna_baseline_matrix[:, :len(red_tiles)] * sky_based_model
 
+
+    print(sky_based_model)
+    print(sky_block_covariance)
+    print(beam_block_covariance)
 
     if redundant_baselines.number_of_baselines < 5000:
         ideal_covariance = sky_covariance(nu=nu, u = redundant_baselines.u(nu), v = redundant_baselines.v(nu),
@@ -624,7 +646,7 @@ def sky_model_matrix_populator(uv_positions):
 
 
 def telescope_bounds(position_path, bound_type="redundant", nu=150e6, position_precision=1e-2, broken_tile_fraction=0.3,
-                     sky_model_depth = 1e-2):
+                     sky_model_depth = 1e-1):
     """
 
     Parameters
@@ -650,11 +672,14 @@ def telescope_bounds(position_path, bound_type="redundant", nu=150e6, position_p
                                                    broken_tile_fraction=broken_tile_fraction)
         print("Absolute Bounds")
         absolute_crlb = absolute_calibration_crlb(sky_table, nu=150e6, position_precision=position_precision,
+                                                  broken_tile_fraction=broken_tile_fraction,
                                                   sky_model_depth=sky_model_depth)
         crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(redundant_crlb)), absolute_crlb])
     elif bound_type == "sky":
         redundant_table = redundant_baseline_finder(telescope.baseline_table, group_minimum=1)
-        sky_crlb = sky_calibration_crlb(redundant_table, sky_model_depth=sky_model_depth)
+        sky_crlb = sky_calibration_crlb(redundant_table, sky_model_depth=sky_model_depth,
+                                        broken_tile_fraction=broken_tile_fraction,
+                                        position_precision=position_precision)
         crlb_data = numpy.array([number_antennas, numpy.median(numpy.diag(sky_crlb))])
 
     return crlb_data

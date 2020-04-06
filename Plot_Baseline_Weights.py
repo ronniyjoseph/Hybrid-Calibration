@@ -79,8 +79,8 @@ def main(plot_u_dist = False ,plot_array_matrix = False, plot_inverse_matrix = F
     countskyplot = axes[0, 1].pcolor(sky_bins, sky_bins, sky_counts, norm = norm)
 
     norm = colors.LogNorm()
-    normredplot = axes[1, 2].pcolor(redundant_bins, redundant_bins, redundant_uu_weights * red_counts, norm = norm)
-    normskyplot = axes[0, 2].pcolor(sky_bins, sky_bins, sky_uu_weights * sky_counts, norm = norm)
+    normredplot = axes[1, 2].pcolor(redundant_bins, redundant_bins, redundant_uu_weights / red_counts, norm = norm)
+    normskyplot = axes[0, 2].pcolor(sky_bins, sky_bins, sky_uu_weights / sky_counts, norm = norm)
 
 
     axes[1, 0].set_xlabel(r"$u\,[\lambda]$")
@@ -107,6 +107,7 @@ def main(plot_u_dist = False ,plot_array_matrix = False, plot_inverse_matrix = F
     colorbar(normredplot)
     colorbar(normskyplot)
 
+    pyplot.tight_layout()
     pyplot.show()
 
 
@@ -285,7 +286,7 @@ def compute_binned_weights(baseline_table, baseline_weights, binned=True, u_bins
         else:
             baseline_weights2 = baseline_weights[index2 - 1, :]
         weights = numpy.sqrt((baseline_weights1**2 + baseline_weights2**2))
-        # weights[weights < 1e-4] = 0
+        weights[weights < 1e-4] = 0
         uu_weights[i, :] = weights
 
     sorted_indices = numpy.argsort(baseline_lengths)
@@ -304,7 +305,7 @@ def compute_binned_weights(baseline_table, baseline_weights, binned=True, u_bins
         flattened_uu2 = uu2.flatten()
         computed_weights = numpy.histogram2d(flattened_uu1, flattened_uu2, bins=u_bins,
                                          weights=uu_weights.flatten())
-        computed_counts = numpy.histogram2d(flattened_uu1, flattened_uu2, bins=u_bins, normed=True)
+        computed_counts = numpy.histogram2d(flattened_uu1, flattened_uu2, bins=u_bins, normed=False)
     return u_bins, computed_weights[0], computed_counts[0]
 
 

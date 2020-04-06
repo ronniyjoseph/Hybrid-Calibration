@@ -116,7 +116,7 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     return covariance
 
 
-def sky_covariance(u, v, nu, S_low=1e-5, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
+def sky_covariance(u, v, nu, S_low=1e-3, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
                    tile_diameter=4):
 
     mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)

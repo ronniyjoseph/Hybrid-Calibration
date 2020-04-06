@@ -2,13 +2,13 @@ import argparse
 import numpy
 
 
-def main(plot_telescopes = False, axes_label_font = 20, tickfontsize=15 ):
-    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy_TEST/"
+def main(plot_telescopes = True, axes_label_font = 20, tickfontsize=15,title_font=20 ):
+    output_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
     # Set all relevant data paths
-    redundant_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy_TEST/"
-    skymodel_current_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy_TEST/"
+    redundant_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
+    skymodel_current_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
 
-    skymodel_deep_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_10mJy_TEST/"
+    skymodel_deep_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_10mJy/"
 
 
     # Import all plotting data
@@ -79,9 +79,9 @@ def main(plot_telescopes = False, axes_label_font = 20, tickfontsize=15 ):
     axes[1].legend()
     axes[2].legend()
 
-    axes[0].set_title("Redundant Calibration")
-    axes[1].set_title("Sky Based Calibration")
-    axes[2].set_title("Comparison")
+    axes[0].set_title("Redundant Calibration", fontsize=title_font)
+    axes[1].set_title("Sky Based Calibration", fontsize=title_font)
+    axes[2].set_title("Comparison", fontsize=title_font)
 
     axes[0].tick_params(axis='both', which='major', labelsize=tickfontsize)
     axes[1].tick_params(axis='both', which='major', labelsize=tickfontsize)
