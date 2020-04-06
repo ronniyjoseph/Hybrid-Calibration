@@ -117,7 +117,7 @@ def plot_2dpower_spectrum(u_bins, eta_bins, nu, data, norm = None, title=None, a
         norm = colors.LogNorm(vmin=numpy.real(z_values).min(), vmax=numpy.real(z_values).max())
 
     if title is not None:
-        axes.set_title(title)
+        axes.set_title(title, fontsize=axes_label_font)
 
     psplot = axes.pcolor(x_values, y_values, z_values.T, cmap=colormap, rasterized=True, norm=norm)
     if colorbar_show:
