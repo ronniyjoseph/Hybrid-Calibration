@@ -55,7 +55,7 @@ def plot_1dpower_spectrum(eta_bins, nu, data, norm = None, title=None, axes=None
     #     norm = colors.LogNorm(vmin=numpy.real(z_values).min(), vmax=numpy.real(z_values).max())
     #
     if title is not None:
-        axes.set_title(title)
+        axes.set_title(title, fontsize=axes_label_font)
 
     psplot = axes.plot(x_values,z_values, color=color)#, cmap=colormap, rasterized=True, norm=norm)
     # if colorbar_show:
@@ -141,7 +141,9 @@ def plot_2dpower_spectrum(u_bins, eta_bins, nu, data, norm = None, title=None, a
 
 def plot_power_contours(u_bins, eta_bins, nu, data, norm = None, title=None, axes=None,
                   contour_levels=None, axes_label_font=20, tickfontsize=15, xlabel_show=False, ylabel_show=False,
-                  zlabel_show=False, z_label = None, ratio = False, diff = False, x_range = None, y_range = None):
+                  zlabel_show=False, z_label = None, ratio = False, diff = False, x_range = None, y_range = None,
+                        contour_label_locs = None):
+
 
     central_frequency = nu[int(len(nu) / 2)]
     x_values = from_u_to_k_perp(u_bins, central_frequency)
@@ -178,7 +180,8 @@ def plot_power_contours(u_bins, eta_bins, nu, data, norm = None, title=None, axe
 
     xx, yy = numpy.meshgrid(x_values, y_values)
     contourplot = axes.contour(xx, yy, z_values.T, levels = contour_levels, colors='w')
-    axes.clabel(contourplot, inline=1, fontsize=10,  fmt='%d')
+    if contour_label_locs is not None:
+        axes.clabel(contourplot, inline=1, fontsize=10,  fmt='%d', manual=contour_label_locs)
 
     axes.set_xscale('log')
     axes.set_yscale('log')

@@ -223,6 +223,7 @@ def compute_weights(u_cells, u, v, N_antenna = 128):
     log_steps = numpy.diff(numpy.log10(u_cells))
     u_bin_edges[1:] = 10**(numpy.log10(u_cells) + 0.5*log_steps[0])
     u_bin_edges[0] = 10**(numpy.log10(u_cells[0] - 0.5*log_steps[0]))
+    counts, bin_edges = numpy.histogram(baseline_lengths, bins=u_bin_edges)
 
     prime, unprime = numpy.meshgrid(counts / len(baseline_lengths), counts / len(baseline_lengths))
     weights = prime * unprime * (2 / (N_antenna - 1)) ** 2
@@ -299,7 +300,7 @@ def calibrated_residual_error(u, nu, residuals='both', broken_baselines_weight =
                                                          tile_diameter=tile_diameter, position_error=position_error)
 
     elif calibration_type == "absolute":
-        sky_averaged_covariance = gain_error_covariance(u, nu, residuals='both', calibration_type='sky',
+        sky_averaged_covariance = gain_error_covariance(u, nu, residuals=residuals, calibration_type='sky',
                                                         weights=weights, N_antenna=N_antenna,
                                                         broken_baseline_weight=broken_baselines_weight,
                                                         tile_diameter=tile_diameter, model_limit=model_limit)

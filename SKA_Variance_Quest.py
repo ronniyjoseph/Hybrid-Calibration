@@ -8,10 +8,10 @@ from src.skymodel import sky_moment_returner
 
 
 def main(model_limit = 1e-2):
-    print(sky_moment_returner(n_order=2))
-    print(sky_moment_returner(n_order=2, s_low=model_limit))
-    print(sky_moment_returner(n_order=2, s_high=model_limit))
-
+    telescope = RadioTelescope(load=True, path="data/SKA_Low_v5_ENU_mini.txt")
+    baselines = telescope.baseline_table
+    lengths = numpy.sqrt(baselines.u_coordinates**2 + baselines.v_coordinates**2)
+    print(numpy.min(lengths)*2)
     # telescope_bounds("data/SKA_Low_v5_ENU_mini.txt", bound_type="sky")
     # mwa_hexes_sky = telescope_bounds("data/MWA_Hexes_Coordinates.txt", bound_type="sky")
     # print("MWA Compact")

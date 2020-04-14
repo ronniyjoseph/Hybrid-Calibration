@@ -28,7 +28,7 @@ def main(plot_u_dist = False ,plot_array_matrix = False, plot_inverse_matrix = F
     if plot_u_dist:
         make_plot_uv_distribution(telescope, show_plot=show_plot, save_plot=save_plot, plot_folder=plot_folder)
 
-
+    n_baselines = telescope.baseline_table.number_of_baselines
     sky_matrix = sky_matrix_constructor(telescope)
     redundant_matrix = redundant_matrix_constructor(telescope)
 
@@ -79,8 +79,9 @@ def main(plot_u_dist = False ,plot_array_matrix = False, plot_inverse_matrix = F
     countskyplot = axes[0, 1].pcolor(sky_bins, sky_bins, sky_counts, norm = norm)
 
     norm = colors.LogNorm()
-    normredplot = axes[1, 2].pcolor(redundant_bins, redundant_bins, redundant_uu_weights / red_counts, norm = norm)
-    normskyplot = axes[0, 2].pcolor(sky_bins, sky_bins, sky_uu_weights / sky_counts, norm = norm)
+    normredplot = axes[1, 2].pcolor(redundant_bins, redundant_bins, redundant_uu_weights/red_counts,
+                                    norm = norm)
+    normskyplot = axes[0, 2].pcolor(sky_bins, sky_bins, sky_uu_weights/sky_counts, norm = norm)
 
 
     axes[1, 0].set_xlabel(r"$u\,[\lambda]$")

@@ -15,31 +15,38 @@ from src.covariance import compute_weights
 
 from src.util import redundant_baseline_finder
 
-def main(labelfontsize = 16, ticksize= 11, save = True):
+def main(labelfontsize = 16, ticksize= 11, save = False):
     output_path = "/home/ronniyjoseph/Sync/PhD/Thesis/ThesisTex/images/chapter_7/"
     k_perp_range = numpy.array([1e-4, 1.1e-1])
 
-    # telescope_position_path = "./Data/MWA_Compact_Coordinates.txt"
-    # tile_diameter = 4
-    # fraction_broken = 0.3
-    # position_error = 0.01
-    #
-
-    telescope_position_path = "./Data/HERA_128.txt"
-    tile_diameter = 14
+    telescope_position_path = "./Data/MWA_Compact_Coordinates.txt"
+    tile_diameter = 4
     fraction_broken = 0.3
-    position_error = 0.1
+    position_error = 0.01
+    model_limit = 1e-1
 
-    u_range = numpy.logspace(-1, numpy.log10(500), 100)
+
+    # telescope_position_path = "./Data/HERA_128.txt"
+    # tile_diameter = 14
+    # fraction_broken = 0.3
+    # position_error = 0.1
+    # model_limit = 1e-1
+
+    contour_levels = numpy.array([1e0, 1e1, 1e2])
+    sky_clocations = [(6e-2, 0.21), (4e-2, 0.17), (3e-2, 0.07 )]
+    beam_clocations = [(6e-2, 0.21), (0.045, 0.15), (3e-2, 0.07 )]
+    total_clocations = [(6e-2, 0.24), (0.045, 0.18), (3e-2, 0.10)]
+
+    u_range = numpy.logspace(-1, numpy.log10(500), 50)
 
     frequency_range = numpy.linspace(135, 165, 251) * 1e6
-    contour_levels = numpy.array([1e1, 1e2, 1e3])
 
     eta = from_frequency_to_eta(frequency_range)
     eor_power_spectrum = fiducial_eor_power_spectrum(u_range, eta)
 
     telescope = RadioTelescope(load=True, path=telescope_position_path)
-    redundant_table = redundant_baseline_finder(telescope.baseline_table)
+    redundant_table = telescope.baseline_table
+    # redundant_table = redundant_baseline_finder(telescope.baseline_table)
     weights = compute_weights(u_range, redundant_table.u_coordinates,
                               redundant_table.v_coordinates)
 
@@ -47,18 +54,20 @@ def main(labelfontsize = 16, ticksize= 11, save = True):
                                                     calibration_type='redundant', weights = weights,
                                                     tile_diameter=tile_diameter,
                                                     broken_baselines_weight = fraction_broken,
-                                                    position_error=position_error)
+                                                    position_error=position_error,
+                                                    model_limit = model_limit)
 
     beam_calibrated = calibrated_residual_error(u=u_range, nu=frequency_range, residuals='beam',
                                                 calibration_type='redundant', weights = weights,
                                                 tile_diameter=tile_diameter,
                                                 broken_baselines_weight = fraction_broken,
-                                                position_error=position_error)
+                                                position_error=position_error, model_limit=model_limit)
 
     total_calibrated = calibrated_residual_error(u=u_range, nu=frequency_range, residuals='both',
                                                  calibration_type='redundant', weights = weights,
                                                  tile_diameter=tile_diameter,
-                                                 broken_baselines_weight=fraction_broken, position_error=position_error)
+                                                 broken_baselines_weight=fraction_broken, position_error=position_error,
+                                                 model_limit=model_limit)
 
     figure, axes = pyplot.subplots(1, 3, figsize=(15, 5))
 
@@ -77,13 +86,16 @@ def main(labelfontsize = 16, ticksize= 11, save = True):
                         xlabel_show=True, norm=ps_norm, zlabel_show=True, ylabel_show=False)
 
     plot_power_contours(u_range, eta, frequency_range, from_jansky_to_milikelvin(position_calibrated, frequency_range)/eor_power_spectrum,
-                        axes=axes[0], ratio=True, axes_label_font=labelfontsize, tickfontsize=ticksize, xlabel_show=True, norm=ps_norm, ylabel_show=False, contour_levels=contour_levels)
+                        axes=axes[0], ratio=True, axes_label_font=labelfontsize, tickfontsize=ticksize, xlabel_show=True,
+                        norm=ps_norm, ylabel_show=False, contour_levels=contour_levels, contour_label_locs=sky_clocations)
 
     plot_power_contours(u_range, eta, frequency_range, from_jansky_to_milikelvin(beam_calibrated, frequency_range)/eor_power_spectrum,
-                        axes=axes[1], ratio=True, axes_label_font=labelfontsize, tickfontsize=ticksize, xlabel_show=True, norm=ps_norm, ylabel_show=False, contour_levels=contour_levels)
+                        axes=axes[1], ratio=True, axes_label_font=labelfontsize, tickfontsize=ticksize, xlabel_show=True,
+                        norm=ps_norm, ylabel_show=False, contour_levels=contour_levels, contour_label_locs=beam_clocations)
 
     plot_power_contours(u_range, eta, frequency_range, from_jansky_to_milikelvin(total_calibrated, frequency_range)/eor_power_spectrum,
-                        axes=axes[2], ratio=True, axes_label_font=labelfontsize, tickfontsize=ticksize, xlabel_show=True, norm=ps_norm, ylabel_show=False, contour_levels=contour_levels)
+                        axes=axes[2], ratio=True, axes_label_font=labelfontsize, tickfontsize=ticksize, xlabel_show=True,
+                        norm=ps_norm, ylabel_show=False, contour_levels=contour_levels, contour_label_locs=total_clocations)
 
     pyplot.tight_layout()
     if save:

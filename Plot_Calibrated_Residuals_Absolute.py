@@ -18,7 +18,7 @@ def main(labelfontsize = 20, ticksize= 15):
     u_range = numpy.logspace(-1, numpy.log10(500), 100)
     u_plot = 7
     model_limit = 1e-1
-
+    broken_baseline_weight = 0.3
     frequency_range = numpy.linspace(135, 165, 251) * 1e6
     contour_levels = numpy.array([1e1, 1e2, 1e3])
 
@@ -28,11 +28,14 @@ def main(labelfontsize = 20, ticksize= 15):
     eor_power_spectrum = fiducial_eor_power_spectrum(u_range, eta)
 
     sky_calibrated = calibrated_residual_error(u=u_range, nu=frequency_range, residuals='sky',
-                                                                 calibration_type='absolute', model_limit=model_limit)
+                                                                 calibration_type='absolute', model_limit=model_limit,
+                                               broken_baselines_weight=broken_baseline_weight)
     beam_calibrated = calibrated_residual_error(u=u_range, nu=frequency_range, residuals='beam',
-                                                         calibration_type='absolute', model_limit=model_limit)
+                                                         calibration_type='absolute', model_limit=model_limit,
+                                               broken_baselines_weight=broken_baseline_weight)
     total_calibrated = calibrated_residual_error(u=u_range, nu=frequency_range, residuals='both',
-                                                           calibration_type='absolute', model_limit=model_limit)
+                                                           calibration_type='absolute', model_limit=model_limit,
+                                               broken_baselines_weight=broken_baseline_weight)
 
     index = numpy.where(numpy.abs(u_range - u_plot) == numpy.min(numpy.abs(u_range - u_plot)))[0]
 
