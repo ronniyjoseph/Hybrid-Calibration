@@ -2,7 +2,7 @@ import numpy
 import copy
 import os
 from scipy.constants import c
-
+from scipy.special import jv
 
 class RadioTelescope:
 
@@ -216,6 +216,13 @@ def beam_width(frequency =150e6, diameter=4, epsilon=0.42):
     return width
 
 
+def airy_beam(theta, nu=150e6, diameter = 6):
+    k = 2*numpy.pi*nu/c
+
+    beam = (2*jv(1, k*diameter*numpy.sin(theta))/(k*diameter*numpy.sin(theta)))**2.
+    return beam
+
+
 def ideal_gaussian_beam(source_l, source_m, nu, diameter=4, epsilon=0.42):
     sigma = beam_width(nu, diameter, epsilon)
 
@@ -235,6 +242,27 @@ def broken_gaussian_beam(source_l, source_m, nu, faulty_dipole, diameter=4, epsi
                                y_offsets[faulty_dipole] * numpy.abs(source_m)) / wavelength)
 
     return broken_beam
+
+
+def simple_mwa_tile(theta, phi, target_theta=0, target_phi=0, frequency=150e6, weights=1):
+    dipole_sep = 1.1  # meters
+    x_offsets = numpy.array([-1.5, -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5, -1.5,
+                             -0.5, 0.5, 1.5, -1.5, -0.5, 0.5, 1.5], dtype=numpy.float32) * dipole_sep
+    y_offsets = numpy.array([1.5, 1.5, 1.5, 1.5, 0.5, 0.5, 0.5, 0.5, -0.5, -0.5,
+                             -0.5, -0.5, -1.5, -1.5, -1.5, -1.5], dtype=numpy.float32) * dipole_sep
+    z_offsets = numpy.zeros(x_offsets.shape)
+
+    weights += numpy.zeros(x_offsets.shape)
+
+    dipole_jones_matrix = ideal_gaussian_beam(numpy.sin(theta),0, nu=frequency, diameter=1)
+    array_factor = get_array_factor(x_offsets, y_offsets, z_offsets, weights, theta, phi, target_theta, target_phi,
+                                    frequency)
+
+    tile_response = array_factor * dipole_jones_matrix
+    tile_response /=tile_response.max()
+
+
+    return tile_response
 
 
 def ideal_mwa_beam_loader(theta, phi, frequency, load=True, verbose=False):
