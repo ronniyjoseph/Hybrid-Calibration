@@ -7,7 +7,7 @@ def main(plot_telescopes = True, axes_label_font = 20, tickfontsize=15,title_fon
     # Set all relevant data paths
     redundant_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
     skymodel_current_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy/"
-
+    telescope_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_100mJy_Thesis/"
     skymodel_deep_path = "/data/rjoseph/Hybrid_Calibration/theoretical_calculations/sky_limit_10mJy/"
 
 
@@ -16,14 +16,14 @@ def main(plot_telescopes = True, axes_label_font = 20, tickfontsize=15,title_fon
     data_sky_model = numpy.loadtxt(skymodel_current_path + "skymodel_crlb.txt")
     data_sky_model_deep = numpy.loadtxt(skymodel_deep_path + "skymodel_crlb.txt")
     if plot_telescopes:
-        mwa_hexes_redundant= numpy.loadtxt(redundant_path + "mwa_hexes_redundant.txt")
-        hera_128_redundant = numpy.loadtxt(redundant_path + "hera_128_redundant.txt")
-        hera_350_redundant = numpy.loadtxt(redundant_path + "hera_350_redundant.txt")
+        mwa_hexes_redundant= numpy.loadtxt(telescope_path + "mwa_hexes_redundant.txt")
+        hera_128_redundant = numpy.loadtxt(telescope_path + "hera_128_redundant.txt")
+        hera_350_redundant = numpy.loadtxt(telescope_path + "hera_350_redundant.txt")
 
-        mwa_hexes_skymodel = numpy.loadtxt(skymodel_current_path + "mwa_hexes_skymodel.txt")
-        mwa_compact_skymodel = numpy.loadtxt(skymodel_current_path + "mwa_compact_skymodel.txt")
-        hera_350_skymodel = numpy.loadtxt(skymodel_current_path + "hera_350_skymodel.txt")
-        ska_low_skymodel = numpy.loadtxt(skymodel_current_path + "ska_low_skymodel.txt")
+        mwa_hexes_skymodel = numpy.loadtxt(telescope_path + "mwa_hexes_skymodel.txt")
+        mwa_compact_skymodel = numpy.loadtxt(telescope_path + "mwa_compact_skymodel.txt")
+        hera_350_skymodel = numpy.loadtxt(telescope_path + "hera_350_skymodel.txt")
+        ska_low_skymodel = numpy.loadtxt(telescope_path + "ska_low_skymodel.txt")
 
     fig, axes = pyplot.subplots(2, 2, figsize=(10, 10))
 
@@ -87,9 +87,9 @@ def main(plot_telescopes = True, axes_label_font = 20, tickfontsize=15,title_fon
     axes[0, 0].tick_params(axis='both', which='major', labelsize=tickfontsize)
     axes[0, 1].tick_params(axis='both', which='major', labelsize=tickfontsize)
     axes[1, 0].tick_params(axis='both', which='major', labelsize=tickfontsize)
-    axes[1, 1].axis("offsay ")
+    axes[1, 1].axis("off")
     pyplot.tight_layout()
-    fig.savefig(output_path + "Calibration_FIM_Thesis.pdf", transparent = True)
+    fig.savefig(output_path + "Calibration_FIM_Thesis2.0.pdf", transparent = True)
     return
 
 
