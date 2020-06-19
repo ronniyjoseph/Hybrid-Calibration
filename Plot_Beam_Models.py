@@ -1,4 +1,4 @@
-import numpy
+import numpy as np
 import argparse
 from matplotlib import colors
 
@@ -7,27 +7,93 @@ from src.radiotelescope import ideal_gaussian_beam
 from src.radiotelescope import airy_beam
 from src.radiotelescope import simple_mwa_tile
 
-def main():
-    theta = numpy.linspace(0, numpy.pi/2, 300)
-    phi = 0
+from pyuvdata import UVBeam
+from pyuvdata.data import DATA_PATH
 
-    mwa_model = mwa_tile_beam(theta, phi)
-    gaussian_model = ideal_gaussian_beam(numpy.sin(theta), 0, nu=150e6, epsilon=0.42)
-    airy_model = airy_beam(theta, diameter=4)
+from mwa_pb import config
+from mwa_pb.beam_full_EE import ApertureArray
+from mwa_pb.beam_full_EE import Beam
+
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+
+def main(labelfontsize = 15, tickfontsize= 15):
+    theta = np.linspace(0, np.pi/2, 300)
+    phi = np.zeros_like(theta)
+
+    mwa_tile_size = 4
+    hera_dish_size = 6
+
+    mwa_model = mwa_fee_model(theta, phi)
+    hera_model = hera_fee_model(theta, phi)
+
+
+    mwa_gaussian = ideal_gaussian_beam(np.sin(theta), 0, nu=150e6, diameter=mwa_tile_size, epsilon=0.42)
+    mwa_airy = airy_beam(theta, diameter=mwa_tile_size*0.7)
     mwa_simple = simple_mwa_tile(theta, 0)
 
+    hera_gaussian = ideal_gaussian_beam(np.sin(theta), 0, nu=150e6, diameter=hera_dish_size, epsilon=0.42)
+    hera_airy = airy_beam(theta, diameter=hera_dish_size)
 
-    figure, axes = pyplot.subplots(1,1, figsize = (5,5))
-    axes.plot(numpy.degrees(theta), numpy.abs(mwa_model), linewidth = 5, alpha=0.4, color='k')
-    # axes.plot(numpy.degrees(theta), numpy.abs(gaussian_model))
-    # axes.plot(numpy.degrees(theta), numpy.abs(airy_model))
-    axes.plot(numpy.degrees(theta), numpy.abs(mwa_simple))
-    axes.set_yscale('log')
-    axes.set_ylim(1e-3,2)
-    pyplot.show()
+    figure, axes = plt.subplots(1,2, figsize = (10,5), subplot_kw = {"yscale": "log",
+                                                                     "ylim": (5e-5, 2)})
+    model_line_width = 5
+    model_line_alpha = 0.4
+    model_line_color = 'k'
+
+    axes[0].plot(np.degrees(theta), np.abs(mwa_model), linewidth = model_line_width, alpha=model_line_alpha,
+                 color=model_line_color, label = "FEE")
+    axes[0].plot(np.degrees(theta), np.abs(mwa_gaussian), label = "Gaussian")
+    axes[0].plot(np.degrees(theta), np.abs(mwa_airy), label = "Airy")
+    axes[0].plot(np.degrees(theta), np.abs(mwa_simple), label = "Multi-Gaussian")
+
+    axes[1].plot(np.degrees(theta), np.abs(hera_model), linewidth = model_line_width, alpha=model_line_alpha,
+                 color=model_line_color)
+    axes[1].plot(np.degrees(theta), np.abs(hera_gaussian))
+    axes[1].plot(np.degrees(theta), np.abs(hera_airy))
+
+
+    axes[0].tick_params(axis='both', which='major', labelsize=tickfontsize)
+    axes[1].tick_params(axis='both', which='major', labelsize=tickfontsize)
+
+    axes[0].set_title("MWA", fontsize = labelfontsize)
+    axes[1].set_title("HERA", fontsize = labelfontsize)
+    # axes[0].set_xlabel(r"Zenith Angle [$^\circ$]", fontsize = labelfontsize)
+    # axes[1].set_xlabel(r"Zenith Angle [$^\circ$]", fontsize = labelfontsize)
+
+    axes[0].set_ylabel("Normalised Response", fontsize = labelfontsize)
+    axes[0].legend()
+
+    plt.show()
 
 
     return
+
+
+def mwa_fee_model(theta, phi, nu = 150e6):
+    h5filepath = config.h5file  # recent version was MWA_embedded_element_pattern_V02.h5
+    tile = ApertureArray(h5filepath, nu)
+    my_Astro_Az = 0
+    my_ZA = 0
+    delays = np.zeros([2, 16])  # Dual-pol.
+    amps = np.ones([2, 16])
+
+    tile_beam = Beam(tile, delays, amps=amps)
+    jones = tile_beam.get_response(phi, theta)
+    power = jones[0, 0] * jones[0, 0].conjugate() + jones[0, 1] * jones[0, 1].conjugate()
+    return power/power.max()
+
+
+def hera_fee_model(theta, phi, nu = 150e6):
+    path = "data/HERA_beam/"
+    beam = UVBeam()
+    # settings_file = os.path.join(DATA_PATH, path + 'HERA_Vivaldi_CST_beams.yaml')
+    beam.read_beamfits(path + "NF_HERA_Dipole_power_beam.fits")
+    beam.peak_normalize()
+    beam.interpolation_function = 'az_za_simple'
+    beam.freq_interp_kind = 'linear'
+    response = beam.interp(az_array = phi, za_array = theta, freq_array=np.array([nu]))
+    return response[0][0,0,0,0,:]
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -38,6 +104,7 @@ if __name__ == "__main__":
 
     if params.ssh_key:
         matplotlib.use("Agg")
-    from matplotlib import pyplot
+    from matplotlib import pyplot as plt
+
 
     main()
