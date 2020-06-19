@@ -106,8 +106,7 @@ class BaselineTable:
             assert frequency_channels > 1e6, "Frequency range is smaller 1 MHz, probably wrong units"
             self.reference_frequency = frequency_channels
         else:
-            raise ValueError(
-                f"frequency_channels should be 'numpy.ndarray', or scalar not type({self.reference_frequency})")
+            raise ValueError(f"frequency_channels should be 'numpy.ndarray', or scalar not type({self.reference_frequency})")
 
         # calculate the wavelengths of the adjacent channels
         reference_wavelength = c / self.reference_frequency
