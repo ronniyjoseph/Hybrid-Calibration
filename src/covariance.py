@@ -9,6 +9,9 @@ from .radiotelescope import airy_beam
 from .skymodel import sky_moment_returner
 from .powerspectrum import compute_power
 from matplotlib import pyplot
+import multiprocessing
+from functools import partial
+
 
 def sky_covariance_airy(u, nu, S_low=1e-3, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
                    tile_diameter=4):
@@ -150,27 +153,39 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     return covariance
 
 
+def repeater(x, channels):
+    x = numpy.repeat(x[numpy.newaxis, ...], channels, axis=0)
+    array = numpy.repeat(x[numpy.newaxis, ...], channels, axis=0)
+    return array
+
+def parallel(u, v, nn1, nn2,xx, yy, mu_2, gamma, i):
+    width_tile1 = beam_width(nn1[i], diameter=1)
+    width_tile2 = beam_width(nn2[i], diameter=1)
+    sigma_nu = width_tile1 ** 2 * width_tile2 ** 2 / (width_tile1 ** 2 + width_tile2 ** 2)
+
+    a = u * (nn1[i] - nn2[i]) / nn1[0] - (xx[0] - xx[1]) * nn1[i] / c - (xx[2] - xx[3]) * nn2[i] / c
+
+    b = v * (nn1[i] - nn2[i]) / nn1[0] - (yy[0] - yy[1]) * nn1[i] / c - (yy[2] - yy[3]) * nn2[i] / c
+
+    kernels = sigma_nu * (nn1[i] * nn2[i] / nn1[0] ** 2) ** (-gamma) * numpy.exp(
+        -2 * numpy.pi * sigma_nu * (a ** 2 + b ** 2))
+    covariance = 2 * numpy.pi * mu_2 * numpy.sum(kernels)
+    return covariance
+
+
 def sky_covariance_full(u, v, nu, S_low=1e-3, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
                    tile_diameter=1):
     print(u)
     mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)
-    x_offsets, y_offsets = mwa_dipole_locations(dx=1)
-    nn2, xx1, xx2, xx3, xx4 = numpy.meshgrid(nu, x_offsets, x_offsets, x_offsets, x_offsets, indexing = "ij")
-    nn2, yy1, yy2, yy3, yy4 = numpy.meshgrid(nu, y_offsets, y_offsets, y_offsets, y_offsets, indexing = "ij")
+    x, y = mwa_dipole_locations(dx=tile_diameter)
+    nn1, nn2 = numpy.meshgrid(nu, nu)
+    xx = (numpy.meshgrid(x, x, x, x, indexing = "ij"))
+    yy = (numpy.meshgrid(y, y, y, y, indexing = "ij"))
 
-    axes = numpy.arange(0, len(nn2.shape), 1).astype(int)
-    covariance = numpy.zeros((len(nu), len(nu)))
-    for i in range(len(nu)):
-        width_tile1 = beam_width(nu[i], diameter=tile_diameter)
-        width_tile2 = beam_width(nn2, diameter=tile_diameter)
-        sigma_nu = width_tile1 ** 2 * width_tile2 ** 2 / (width_tile1 ** 2 + width_tile2 ** 2)
-
-
-        a = u*(nu[i]-nn2)/nu[0] - (xx1 -xx2)*nu[i]/c - (xx3 -xx4)*nn2/c
-        b = v * (nu[i] - nn2) / nu[0] - (yy1 - yy2) * nu[i] / c - (yy3 - yy4) * nn2 / c
-
-        kernels = sigma_nu * (nu[i]*nn2/nu[0]**2)**(-gamma)*numpy.exp(-2*numpy.pi*sigma_nu*(a**2 + b**2))
-        covariance[i,:] = 2 * numpy.pi * mu_2 * numpy.sum(kernels, axis=tuple(axes[1:]))
+    index = numpy.arange(0, len(nu)**2, 1)
+    pool = multiprocessing.Pool(6)
+    output = numpy.array(pool.map(partial(parallel, u, v, nn1.flatten(), nn2.flatten(), xx, yy, mu_2, gamma), index))
+    covariance = output.reshape((len(nu), len(nu)))
 
     return covariance
 
