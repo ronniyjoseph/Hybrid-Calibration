@@ -4,10 +4,44 @@ from scipy import signal
 
 from .radiotelescope import beam_width
 from .radiotelescope import mwa_dipole_locations
+from .radiotelescope import airy_beam
 
 from .skymodel import sky_moment_returner
 from .powerspectrum import compute_power
 from matplotlib import pyplot
+
+def sky_covariance_airy(u, nu, S_low=1e-3, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
+                   tile_diameter=4):
+    mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)
+
+    covariance = np.zeros((len(u0), len(nu), len(nu)))
+    for i in range(len(nu)):
+        for j in range(i, len(nu)):
+            f = lambda x: airy_disk(x, nu=nu[i], d=diameter) ** 2 * airy_disk(x, nu=nu[j], d=diameter) ** 2
+            scales = u0 / nu[0] * np.abs(nu[i] - nu[j])
+            hhat = ht.transform(f, scales, ret_err=False)  # Return the transform of f at k.
+            covariance[:, i, j] = hhat
+            covariance[:, j, i] = hhat
+
+    return
+
+def compute_kernel(u, nu, diameter = 6):
+    ht = HankelTransform(
+        nu=0,  # The order of the bessel function
+        N=120,  # Number of steps in the integration
+        h=0.0000003  # Proxy for "size" of steps in integration
+    )
+
+    kernel = np.zeros((len(u0), len(nu), len(nu)))
+    for i in range(len(nu)):
+        for j in range(i, len(nu)):
+            f = lambda x: airy_beam(x, nu=nu[i], d=diameter) ** 2 * airy_beam(x, nu=nu[j], d=diameter) ** 2
+            scales = u / nu[0] * np.abs(nu[i] - nu[j])
+            hhat = ht.transform(f, scales, ret_err=False)  # Return the transform of f at k.
+            kernel[:, i, j] = hhat
+            kernel[:, j, i] = hhat
+    return
+
 
 def position_covariance(u, v, nu, position_precision = 1e-2, gamma = 0.8, mode = "frequency", nu_0 = 150e6,
                         tile_diameter = 4, s_high = 10):
@@ -112,6 +146,31 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
         covariance = broken_tile_fraction**2*(covariance_a + covariance_d + covariance_e)
     if calibration_type == "sky":
         covariance = broken_tile_fraction**2*(covariance_a + covariance_b + covariance_c + covariance_d + covariance_e)
+
+    return covariance
+
+
+def sky_covariance_full(u, v, nu, S_low=1e-3, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
+                   tile_diameter=1):
+    print(u)
+    mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)
+    x_offsets, y_offsets = mwa_dipole_locations(dx=1)
+    nn2, xx1, xx2, xx3, xx4 = numpy.meshgrid(nu, x_offsets, x_offsets, x_offsets, x_offsets, indexing = "ij")
+    nn2, yy1, yy2, yy3, yy4 = numpy.meshgrid(nu, y_offsets, y_offsets, y_offsets, y_offsets, indexing = "ij")
+
+    axes = numpy.arange(0, len(nn2.shape), 1).astype(int)
+    covariance = numpy.zeros((len(nu), len(nu)))
+    for i in range(len(nu)):
+        width_tile1 = beam_width(nu[i], diameter=tile_diameter)
+        width_tile2 = beam_width(nn2, diameter=tile_diameter)
+        sigma_nu = width_tile1 ** 2 * width_tile2 ** 2 / (width_tile1 ** 2 + width_tile2 ** 2)
+
+
+        a = u*(nu[i]-nn2)/nu[0] - (xx1 -xx2)*nu[i]/c - (xx3 -xx4)*nn2/c
+        b = v * (nu[i] - nn2) / nu[0] - (yy1 - yy2) * nu[i] / c - (yy3 - yy4) * nn2 / c
+
+        kernels = sigma_nu * (nu[i]*nn2/nu[0]**2)**(-gamma)*numpy.exp(-2*numpy.pi*sigma_nu*(a**2 + b**2))
+        covariance[i,:] = 2 * numpy.pi * mu_2 * numpy.sum(kernels, axis=tuple(axes[1:]))
 
     return covariance
 
