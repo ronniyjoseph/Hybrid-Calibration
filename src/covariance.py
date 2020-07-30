@@ -5,6 +5,7 @@ from scipy import signal
 from .radiotelescope import beam_width
 from .radiotelescope import mwa_dipole_locations
 from .radiotelescope import airy_beam
+from .radiotelescope import simple_mwa_tile
 
 from .skymodel import sky_moment_returner
 from .powerspectrum import compute_power
@@ -153,39 +154,46 @@ def beam_covariance(u, v, nu, dx = 1.1, gamma= 0.8, mode = 'frequency', broken_t
     return covariance
 
 
-def repeater(x, channels):
-    x = numpy.repeat(x[numpy.newaxis, ...], channels, axis=0)
-    array = numpy.repeat(x[numpy.newaxis, ...], channels, axis=0)
-    return array
 
-def parallel(u, v, nn1, nn2,xx, yy, mu_2, gamma, i):
+def parallel(u, v, nn1, nn2,xx, yy, gamma, i):
     width_tile1 = beam_width(nn1[i], diameter=1)
     width_tile2 = beam_width(nn2[i], diameter=1)
     sigma_nu = width_tile1 ** 2 * width_tile2 ** 2 / (width_tile1 ** 2 + width_tile2 ** 2)
 
-    a = u * (nn1[i] - nn2[i]) / nn1[0] - (xx[0] - xx[1]) * nn1[i] / c - (xx[2] - xx[3]) * nn2[i] / c
+    a = u * (nn1[i] - nn2[i]) / nn1[0] + (xx[0] - xx[1]) * nn1[i] / c + (xx[2] - xx[3]) * nn2[i] / c
+    b = v * (nn1[i] - nn2[i]) / nn1[0] + (yy[0] - yy[1]) * nn1[i] / c + (yy[2] - yy[3]) * nn2[i] / c
 
-    b = v * (nn1[i] - nn2[i]) / nn1[0] - (yy[0] - yy[1]) * nn1[i] / c - (yy[2] - yy[3]) * nn2[i] / c
+    kernels =  numpy.exp(-2 * numpy.pi**2 * sigma_nu * (a ** 2 + b ** 2))
+    covariance = numpy.sum(sigma_nu*(nn1[i] * nn2[i]/nn1[0] ** 2) ** (-gamma) * kernels)/xx[0].shape[0]**4
 
-    kernels = sigma_nu * (nn1[i] * nn2[i] / nn1[0] ** 2) ** (-gamma) * numpy.exp(
-        -2 * numpy.pi * sigma_nu * (a ** 2 + b ** 2))
-    covariance = 2 * numpy.pi * mu_2 * numpy.sum(kernels)
     return covariance
 
 
 def sky_covariance_full(u, v, nu, S_low=1e-3, S_mid=1, S_high=10, gamma=0.8, mode = 'frequency', nu_0 = 150e6,
-                   tile_diameter=1):
-    print(u)
+                   dx=1.1, dipole_diameter = 1):
     mu_2 = sky_moment_returner(2, s_low=S_low, s_mid=S_mid, s_high=S_high)
-    x, y = mwa_dipole_locations(dx=tile_diameter)
+    x, y = mwa_dipole_locations(dx=dx)
     nn1, nn2 = numpy.meshgrid(nu, nu)
     xx = (numpy.meshgrid(x, x, x, x, indexing = "ij"))
     yy = (numpy.meshgrid(y, y, y, y, indexing = "ij"))
 
+    #set up matrix indexing arrays for efficient computation and mapping
+    x_index, y_index = numpy.meshgrid(numpy.arange(0, len(nu), 1), numpy.arange(0, len(nu), 1))
+    x_index = x_index.flatten()
+    y_index = y_index.flatten()
+
     index = numpy.arange(0, len(nu)**2, 1)
-    pool = multiprocessing.Pool(6)
-    output = numpy.array(pool.map(partial(parallel, u, v, nn1.flatten(), nn2.flatten(), xx, yy, mu_2, gamma), index))
-    covariance = output.reshape((len(nu), len(nu)))
+    index = index.reshape((len(nu), len(nu)))
+    index = numpy.triu(index, k =0)
+    index = index.flatten()
+    index = index[index > 0]
+    index = numpy.concatenate((numpy.array([0]), index))
+
+    pool = multiprocessing.Pool(4)
+    output = numpy.array(pool.map(partial(parallel, u, v, nn1.flatten(), nn2.flatten(), xx, yy, gamma), index))
+    covariance = numpy.zeros((len(nu), len(nu)))
+    covariance[x_index[index], y_index[index]] = 2 * numpy.pi * mu_2 * output
+    covariance[y_index[index], x_index[index]] = 2 * numpy.pi * mu_2 * output
 
     return covariance
 
@@ -210,9 +218,9 @@ def sky_covariance(u, v, nu, S_low=1e-3, S_mid=1, S_high=10, gamma=0.8, mode = '
     width_tile2 = beam_width(nn2, diameter=tile_diameter)
     sigma_nu = width_tile1**2*width_tile2**2/(width_tile1**2 + width_tile2**2)
 
-
     kernel = -2*numpy.pi ** 2 * sigma_nu * ((uu1*nn1 - uu2*nn2) ** 2 + (vv1*nn1 - vv2*nn2) ** 2)/nu_0**2
     covariance = 2 * numpy.pi * mu_2 * sigma_nu * (nn1*nn2/nu_0**2)**(-gamma)*numpy.exp(kernel)
+
 
     return covariance
 
