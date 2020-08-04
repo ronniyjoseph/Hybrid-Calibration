@@ -6,7 +6,7 @@ from src.covariance import sky_covariance
 from src.covariance import beam_covariance
 from src.powerspectrum import compute_power
 from src.powerspectrum import from_frequency_to_eta
-from src.plottools import plot_power_spectrum
+from src.plottools import plot_2dpower_spectrum
 
 
 def main(labelfontsize = 16, ticksize= 11):
@@ -23,15 +23,15 @@ def main(labelfontsize = 16, ticksize= 11):
 
     ps_norm = colors.LogNorm(vmin=1e3, vmax=1e15)
 
-    plot_power_spectrum(u_range, eta, frequency_range, position_error_power, title="Sky Model Error", axes=axes[0],
+    plot_2dpower_spectrum(u_range, eta, frequency_range, position_error_power, title="Sky Model Error", axes=axes[0],
                         axes_label_font=labelfontsize, tickfontsize=ticksize, colorbar_show=True,
                         xlabel_show=True, norm=ps_norm, ylabel_show=True)
 
-    plot_power_spectrum(u_range, eta, frequency_range, beam_error_power, title="Beam Model Error", axes=axes[1],
+    plot_2dpower_spectrum(u_range, eta, frequency_range, beam_error_power, title="Beam Model Error", axes=axes[1],
                         axes_label_font=labelfontsize, tickfontsize=ticksize, colorbar_show=True,
                         xlabel_show=True, norm=ps_norm)
 
-    plot_power_spectrum(u_range, eta, frequency_range, total_error_power, title="Total Modelling Error", axes=axes[2],
+    plot_2dpower_spectrum(u_range, eta, frequency_range, total_error_power, title="Total Modelling Error", axes=axes[2],
                         axes_label_font=labelfontsize, tickfontsize=ticksize, colorbar_show=True,
                         xlabel_show=True, norm=ps_norm, zlabel_show=True)
 

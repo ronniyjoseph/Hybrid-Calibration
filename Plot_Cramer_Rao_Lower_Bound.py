@@ -40,20 +40,22 @@ def main(plot_telescopes = True, axes_label_font = 20, tickfontsize=15,title_fon
 
     # Plot Telescope Bounds
     if plot_telescopes:
-        axes[0, 0].plot(mwa_hexes_redundant[0], numpy.sqrt(mwa_hexes_redundant[1] + mwa_hexes_redundant[2]), marker="x",
+        axes[0,0].plot(data_redundant[0, :], 1/(9*data_redundant[0, :])**(1/2), 'k')
+
+        axes[0, 0].plot(mwa_hexes_redundant[0], numpy.sqrt(mwa_hexes_redundant[1] + mwa_hexes_redundant[2]), 'C3', marker="x",
                      linestyle = 'None', label="MWA Hexes")
-        axes[0, 0].plot(hera_128_redundant[0], numpy.sqrt(hera_128_redundant[1] + hera_128_redundant[2]), marker="o",
+        axes[0, 0].plot(hera_128_redundant[0], numpy.sqrt(hera_128_redundant[1] + hera_128_redundant[2]), 'C5', marker="o",
                      linestyle = 'None', label="HERA 128")
-        axes[0, 0].plot(hera_350_redundant[0], numpy.sqrt(hera_350_redundant[1] + hera_350_redundant[2]), marker='H',
+        axes[0, 0].plot(hera_350_redundant[0], numpy.sqrt(hera_350_redundant[1] + hera_350_redundant[2]),'C9', marker='H',
                      linestyle='None', label="HERA 350")
 
         # Plot Telescope Bounds for sky based calibration
-        axes[0, 1].plot(mwa_hexes_skymodel[0], numpy.sqrt(mwa_hexes_skymodel[1]), marker='x', linestyle = 'None',
+        axes[0, 1].plot(mwa_hexes_skymodel[0], numpy.sqrt(mwa_hexes_skymodel[1]), 'C3', marker='x', linestyle = 'None',
                      label="MWA Hexes")
-        axes[0, 1].plot(mwa_compact_skymodel[0], numpy.sqrt(mwa_compact_skymodel[1]), marker='+',linestyle = 'None',
+        axes[0, 1].plot(mwa_compact_skymodel[0], numpy.sqrt(mwa_compact_skymodel[1]), 'C7', marker='+',linestyle = 'None',
                      label="MWA Compact")
-        axes[0, 1].plot(hera_350_skymodel[0], numpy.sqrt(hera_350_skymodel[1]), marker='H', linestyle = 'None', label="HERA 350")
-        axes[0, 1].plot(ska_low_skymodel[0], numpy.sqrt(ska_low_skymodel[1]), marker='*', linestyle = 'None', label="SKA_LOW1")
+        axes[0, 1].plot(hera_350_skymodel[0], numpy.sqrt(hera_350_skymodel[1]), 'C9', marker='H', linestyle = 'None', label="HERA 350")
+        axes[0, 1].plot(ska_low_skymodel[0], numpy.sqrt(ska_low_skymodel[1]), 'C8', marker='*', linestyle = 'None', label="SKA_LOW1")
 
     axes[1, 0].plot(data_redundant[0, :], numpy.sqrt(data_redundant[1, :] + data_redundant[2, :]), 'C0',
                  label="Redundancy Based")
@@ -89,7 +91,7 @@ def main(plot_telescopes = True, axes_label_font = 20, tickfontsize=15,title_fon
     axes[1, 0].tick_params(axis='both', which='major', labelsize=tickfontsize)
     axes[1, 1].axis("off")
     pyplot.tight_layout()
-    fig.savefig(output_path + "Calibration_FIM_Thesis2.0.pdf", transparent = True)
+    fig.savefig(output_path + "Calibration_FIM_Thesis3.0.pdf", transparent = True)
     return
 
 

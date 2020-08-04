@@ -2,6 +2,7 @@ import numpy
 from scipy import signal
 from scipy.interpolate import interp1d
 
+from matplotlib import pyplot
 
 def discrete_fourier_transform_matrix(nu):
     dft = numpy.exp(-2 * numpy.pi * 1j / len(nu)) ** numpy.arange(0, len(nu), 1)
@@ -26,6 +27,7 @@ def compute_power(nu, covariance):
     taper1, taper2 = numpy.meshgrid(window, window)
 
     tapered_cov = covariance * taper1 * taper2
+
     eta_cov = numpy.dot(numpy.dot(dft_matrix.conj().T, tapered_cov), dft_matrix)
     power = numpy.diag(numpy.real(eta_cov))[:int(len(nu) / 2)]
 

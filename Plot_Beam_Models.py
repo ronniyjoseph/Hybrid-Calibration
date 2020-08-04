@@ -18,51 +18,40 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 
 def main(labelfontsize = 15, tickfontsize= 15):
-    theta = np.linspace(0, np.pi/2, 300)
+    theta = np.linspace(0, np.pi, 300)
     phi = np.zeros_like(theta)
 
     mwa_tile_size = 4
-    hera_dish_size = 6
 
     mwa_model = mwa_fee_model(theta, phi)
-    hera_model = hera_fee_model(theta, phi)
+    # hera_model = hera_fee_model(theta, phi)
 
 
     mwa_gaussian = ideal_gaussian_beam(np.sin(theta), 0, nu=150e6, diameter=mwa_tile_size, epsilon=0.42)
-    mwa_airy = airy_beam(theta, diameter=mwa_tile_size*0.7)
+    mwa_airy = airy_beam(np.sin(theta), diameter=mwa_tile_size*0.7)
     mwa_simple = simple_mwa_tile(theta, 0)
 
-    hera_gaussian = ideal_gaussian_beam(np.sin(theta), 0, nu=150e6, diameter=hera_dish_size, epsilon=0.42)
-    hera_airy = airy_beam(theta, diameter=hera_dish_size)
+    # hera_gaussian = ideal_gaussian_beam(np.sin(theta), 0, nu=150e6, diameter=hera_dish_size, epsilon=0.42)
+    # hera_airy = airy_beam(theta, diameter=hera_dish_size)
 
-    figure, axes = plt.subplots(1,2, figsize = (10,5), subplot_kw = {"yscale": "log",
+    figure, axes = plt.subplots(1,1, figsize = (5,5), subplot_kw = {"yscale": "log",
                                                                      "ylim": (5e-5, 2)})
     model_line_width = 5
     model_line_alpha = 0.4
     model_line_color = 'k'
 
-    axes[0].plot(np.degrees(theta), np.abs(mwa_model), linewidth = model_line_width, alpha=model_line_alpha,
+    axes.plot(np.degrees(theta), np.sqrt(np.abs(mwa_model)), linewidth = model_line_width, alpha=model_line_alpha,
                  color=model_line_color, label = "FEE")
-    axes[0].plot(np.degrees(theta), np.abs(mwa_gaussian), label = "Gaussian")
-    axes[0].plot(np.degrees(theta), np.abs(mwa_airy), label = "Airy")
-    axes[0].plot(np.degrees(theta), np.abs(mwa_simple), label = "Multi-Gaussian")
+    axes.plot(np.degrees(theta), np.abs(mwa_gaussian), label = "Gaussian")
+    axes.plot(np.degrees(theta), np.abs(mwa_airy), label = "Airy")
+    axes.plot(np.degrees(theta), np.abs(mwa_simple), label = "Multi-Gaussian")
 
-    axes[1].plot(np.degrees(theta), np.abs(hera_model), linewidth = model_line_width, alpha=model_line_alpha,
-                 color=model_line_color)
-    axes[1].plot(np.degrees(theta), np.abs(hera_gaussian))
-    axes[1].plot(np.degrees(theta), np.abs(hera_airy))
+    axes.tick_params(axis='both', which='major', labelsize=tickfontsize)
 
+    axes.set_xlabel(r"Zenith Angle [$^\circ$]", fontsize = labelfontsize)
 
-    axes[0].tick_params(axis='both', which='major', labelsize=tickfontsize)
-    axes[1].tick_params(axis='both', which='major', labelsize=tickfontsize)
-
-    axes[0].set_title("MWA", fontsize = labelfontsize)
-    axes[1].set_title("HERA", fontsize = labelfontsize)
-    # axes[0].set_xlabel(r"Zenith Angle [$^\circ$]", fontsize = labelfontsize)
-    # axes[1].set_xlabel(r"Zenith Angle [$^\circ$]", fontsize = labelfontsize)
-
-    axes[0].set_ylabel("Normalised Response", fontsize = labelfontsize)
-    axes[0].legend()
+    axes.set_ylabel("Normalised Response", fontsize = labelfontsize)
+    axes.legend()
 
     plt.show()
 

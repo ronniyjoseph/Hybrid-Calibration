@@ -18,6 +18,7 @@ sys.path.append("../")
 
 def main(plot_u_dist = False ,plot_array_matrix = False, plot_inverse_matrix = False, plot_weights = False ,
          grid_weights = True, binned_weights = True):
+    plot_blaah = True
     show_plot = True
     save_plot = False
     path = "./Data/MWA_Compact_Coordinates.txt"
@@ -32,6 +33,7 @@ def main(plot_u_dist = False ,plot_array_matrix = False, plot_inverse_matrix = F
     sky_matrix = sky_matrix_constructor(telescope)
     redundant_matrix = redundant_matrix_constructor(telescope)
 
+    print(redundant_matrix.shape)
     print(sky_matrix.shape)
     print(f"Sky Calibration uses {len(sky_matrix[:, 3])/2} baselines")
     print(f"Redundant Calibration uses {len(redundant_matrix[:, 3])/2} baselines")
@@ -58,58 +60,76 @@ def main(plot_u_dist = False ,plot_array_matrix = False, plot_inverse_matrix = F
     print(f"Every Sky calibrated Tile sees {len(sky_weights[0,:][sky_weights[0, :] > 1e-4])}")
     print(f"Every redundant Tile sees {len(redundant_weights[0,:][redundant_weights[0, :] > 1e-4])}")
 
-    u_bins = numpy.linspace(0, 375, 101)
+    u_bins_sky = numpy.linspace(0, 375, 51)
+    u_bins_red = numpy.linspace(0, 100, 25)
     redundant_bins, redundant_uu_weights, red_counts = compute_binned_weights(redundant_baseline_finder(telescope.baseline_table),
-                                                                  redundant_weights, binned=True, u_bins=u_bins)
-    sky_bins, sky_uu_weights, sky_counts = compute_binned_weights(telescope.baseline_table, sky_weights, binned=True, u_bins=u_bins)
+                                                                  redundant_weights, binned=True, u_bins=u_bins_red)
+    sky_bins, sky_uu_weights, sky_counts = compute_binned_weights(telescope.baseline_table, sky_weights, binned=True, u_bins=u_bins_sky)
 
     print(redundant_uu_weights.shape)
-    figure, axes = pyplot.subplots(2,3, figsize=(10, 15))
+    if plot_blaah:
+        figure, axes = pyplot.subplots(2,3, figsize=(6, 4))
 
-    norm = colors.LogNorm()
-    redplot = axes[1, 0].pcolor(redundant_bins, redundant_bins, redundant_uu_weights, norm = norm)
-    norm = colors.LogNorm()
+        sky_bins, sky_approx = baseline_hist(sky_bins, telescope.baseline_table)
+        redundant_bins, redundant_approx = baseline_hist(redundant_bins, redundant_baseline_finder(telescope.baseline_table))
 
-    skyplot = axes[0, 0].pcolor(sky_bins, sky_bins, sky_uu_weights, norm=norm)
+        norm = colors.LogNorm()
+        # redplot = axes[1, 0].pcolor(redundant_bins, redundant_bins, redundant_uu_weights, norm = norm)
+        redplot = axes[1, 0].semilogy(redundant_bins[:len(redundant_bins)-1],redundant_uu_weights, 'k', alpha = 0.3)
 
-    norm = colors.LogNorm()
-    countsredplot = axes[1, 1].pcolor(redundant_bins, redundant_bins, red_counts, norm = norm)
-    norm = colors.LogNorm()
+        norm = colors.LogNorm()
 
-    countskyplot = axes[0, 1].pcolor(sky_bins, sky_bins, sky_counts, norm = norm)
-
-    norm = colors.LogNorm()
-    normredplot = axes[1, 2].pcolor(redundant_bins, redundant_bins, redundant_uu_weights/red_counts,
-                                    norm = norm)
-    normskyplot = axes[0, 2].pcolor(sky_bins, sky_bins, sky_uu_weights/sky_counts, norm = norm)
+        # skyplot = axes[0, 0].pcolor(sky_bins, sky_bins, sky_uu_weights, norm=norm)
+        skyplot = axes[0, 0].semilogy(sky_bins[:len(sky_bins)-1],sky_uu_weights, 'k', alpha = 0.3)
 
 
-    axes[1, 0].set_xlabel(r"$u\,[\lambda]$")
-    axes[1, 1].set_xlabel(r"$u\,[\lambda]$")
-    axes[1, 1].set_xlabel(r"$u\,[\lambda]$")
+        norm = colors.LogNorm()
+        # countsredplot = axes[1, 1].pcolor(redundant_bins, redundant_bins, red_counts, norm = norm)
+        countsredplot = axes[1, 1].semilogy(redundant_bins[:len(redundant_bins)-1],red_counts, 'k', alpha = 0.3)
 
-    axes[0, 0].set_ylabel(r"$u^{\prime}\,[\lambda]$")
-    axes[1, 0].set_ylabel(r"$u^{\prime}\,[\lambda]$")
+        norm = colors.LogNorm()
+
+        # countskyplot = axes[0, 1].pcolor(sky_bins, sky_bins, sky_counts, norm = norm)
+        countskyplot = axes[0, 1].semilogy(sky_bins[:len(sky_bins)-1], sky_counts, 'k', alpha = 0.3)
 
 
-    axes[0, 0].set_title("Sky Weights")
-    axes[1, 0].set_title("Redundant Weights")
+        norm = colors.LogNorm()
+        # normredplot = axes[1, 2].pcolor(redundant_bins, redundant_bins, redundant_uu_weights/red_counts,
+        #                                  norm = norm)
+        normredplot = axes[1, 2].semilogy(redundant_bins[:len(redundant_bins)-1], (redundant_uu_weights/red_counts).T, 'k', alpha = 0.3)
+        normredplot = axes[1, 2].semilogy(redundant_bins[:len(redundant_bins)-1], 1/redundant_approx/245, 'C0')
 
-    axes[0, 1].set_title("Sky Normalisation")
-    axes[1, 1].set_title("Redundant Normalisation")
+        # normskyplot = axes[0, 2].pcolor(sky_bins, sky_bins, sky_uu_weights/sky_counts, norm = norm)
+        normskyplot = axes[0, 2].semilogy(sky_bins[:len(sky_bins)-1],(sky_uu_weights/sky_counts).T, 'k', alpha = 0.3)
+        normskyplot = axes[0, 2].semilogy(sky_bins[:len(sky_bins)-1], 1/sky_approx/127, 'C0')
 
-    axes[0, 2].set_title("Sky Normalised Weights")
-    axes[1, 2].set_title("Redundant Normalised Weights")
+        axes[1, 0].set_xlabel(r"$u\,[\lambda]$")
+        axes[1, 1].set_xlabel(r"$u\,[\lambda]$")
+        axes[1, 1].set_xlabel(r"$u\,[\lambda]$")
 
-    colorbar(redplot)
-    colorbar(skyplot)
-    colorbar(countsredplot)
-    colorbar(countskyplot)
-    colorbar(normredplot)
-    colorbar(normskyplot)
+        axes[0, 0].set_ylabel(r"$u^{\prime}\,[\lambda]$")
+        axes[1, 0].set_ylabel(r"$u^{\prime}\,[\lambda]$")
 
-    pyplot.tight_layout()
-    pyplot.show()
+
+        axes[0, 0].set_title("Sky Weights")
+        axes[1, 0].set_title("Redundant Weights")
+
+        axes[0, 1].set_title("Sky Normalisation")
+        axes[1, 1].set_title("Redundant Normalisation")
+
+        axes[0, 2].set_title("Sky Normalised Weights")
+        axes[1, 2].set_title("Redundant Normalised Weights")
+
+        # colorbar(redplot)
+        # colorbar(skyplot)
+        # colorbar(countsredplot)
+        # colorbar(countskyplot)
+        # colorbar(normredplot)
+        # colorbar(normskyplot)
+
+        pyplot.tight_layout()
+        if show_plot:
+            pyplot.show()
 
 
 
@@ -310,6 +330,11 @@ def compute_binned_weights(baseline_table, baseline_weights, binned=True, u_bins
     return u_bins, computed_weights[0], computed_counts[0]
 
 
+def baseline_hist(u, baseline_table):
+    baseline_lengths = numpy.sqrt(baseline_table.u_coordinates**2 + baseline_table.v_coordinates**2)
+    hist, edges = numpy.histogram(baseline_lengths, u)
+    return u, len(baseline_lengths)/(hist)
+
 def make_plot_uv_distribution(telescope, show_plot = True, save_plot = False, plot_folder = "./"):
     baseline_lengths = numpy.sqrt(telescope.baseline_table.u_coordinates**2 + telescope.baseline_table.v_coordinates**2)
     figure_u, axes_u = pyplot.subplots(1, 1)
@@ -326,13 +351,22 @@ def make_plot_uv_distribution(telescope, show_plot = True, save_plot = False, pl
 
 
 def make_plot_array_matrix(array_matrix, show_plot = True, save_plot = False, plot_folder = "./"):
-    figure_amatrix = pyplot.figure(figsize=(250, 10))
+    figure_amatrix = pyplot.figure(figsize=(10, 5))
 
     axes_amatrix = figure_amatrix.add_subplot(111)
-    plot_amatrix = axes_amatrix.imshow(array_matrix.T, origin = 'lower')
-    colorbar(plot_amatrix)
-    axes_amatrix.set_xlabel("Baseline Number", fontsize = 20)
-    axes_amatrix.set_ylabel("Antenna Number", fontsize = 20)
+    absmatrix = numpy.abs(array_matrix)
+    absmatrix[absmatrix <= 1e-4] = 0
+    absmatrix[absmatrix > 1e-4] = 1
+    # blaah, counts = numpy.unique(absmatrix, axis=0, return_counts=True)
+    counts  = (absmatrix[::2, ::2] == 1).sum(axis=0)
+    pyplot.hist(counts[0:128], bins=30)
+    pyplot.xlabel("Number of Baselines", fontsize =20)
+    pyplot.ylabel("Number of Antennas", fontsize =20)
+    pyplot.show()
+    #plot_amatrix = axes_amatrix.plot(array_matrix.T)
+    #colorbar(plot_amatrix)
+    axes_amatrix.set_xlabel("Baseline Number", fontsize = 15)
+    axes_amatrix.set_ylabel("Antenna Number", fontsize = 15)
     if save_plot:
         figure_amatrix.savefig(plot_folder + "Array_Matrix_Double.pdf")
     if show_plot:
